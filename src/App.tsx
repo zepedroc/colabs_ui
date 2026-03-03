@@ -6,6 +6,14 @@ import { Toaster } from "sonner";
 import { useState } from "react";
 import { ChatPage } from "./ChatPage";
 import { BenchmarkPage } from "./BenchmarkPage";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 type Page = "home" | "chat" | "benchmark";
 
@@ -16,34 +24,30 @@ export default function App() {
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm h-16 flex justify-between items-center border-b shadow-sm px-4">
         <div className="flex items-center gap-6">
-          <button
+          <Button
+            variant="link"
+            size="sm"
             onClick={() => setCurrentPage("home")}
-            className="text-xl font-semibold text-primary hover:text-primary-hover transition-colors"
+            className="text-xl font-semibold text-primary p-0 h-auto"
           >
             Colabs AI
-          </button>
+          </Button>
           <Authenticated>
-            <nav className="flex gap-4">
-              <button
+            <nav className="flex gap-2">
+              <Button
                 onClick={() => setCurrentPage("chat")}
-                className={`px-3 py-1 rounded transition-colors ${
-                  currentPage === "chat"
-                    ? "bg-primary text-white"
-                    : "text-gray-600 hover:text-primary"
-                }`}
+                variant={currentPage === "chat" ? "default" : "ghost"}
+                size="sm"
               >
                 Chat
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => setCurrentPage("benchmark")}
-                className={`px-3 py-1 rounded transition-colors ${
-                  currentPage === "benchmark"
-                    ? "bg-primary text-white"
-                    : "text-gray-600 hover:text-primary"
-                }`}
+                variant={currentPage === "benchmark" ? "default" : "ghost"}
+                size="sm"
               >
                 Benchmark
-              </button>
+              </Button>
             </nav>
           </Authenticated>
         </div>
@@ -86,18 +90,20 @@ function UnauthenticatedContent() {
   return (
     <div className="flex items-center justify-center p-8 h-full">
       <div className="w-full max-w-md mx-auto">
-        <div className="flex flex-col gap-8">
-          <div className="text-center">
-            <h1 className="text-5xl font-bold text-primary mb-4">Colabs AI</h1>
-            <p className="text-xl text-secondary mb-2">
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-4xl text-primary">Colabs AI</CardTitle>
+            <CardDescription className="text-base">
               Collaborative AI Agents Platform
-            </p>
-            <p className="text-gray-600">
+            </CardDescription>
+            <p className="text-sm text-gray-600">
               Sign in to start collaborating with AI agents
             </p>
-          </div>
-          <SignInForm />
-        </div>
+          </CardHeader>
+          <CardContent>
+            <SignInForm />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -114,28 +120,34 @@ function HomePage() {
           Hello, {loggedInUser?.email ?? "friend"}! Ready to collaborate with AI agents?
         </p>
         <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-xl font-semibold mb-3">AI Council Chat</h3>
-            <p className="text-gray-600 mb-4">
-              Engage with multiple AI agents in collaborative discussions and get diverse perspectives on your queries.
-            </p>
-            <div className="text-sm text-gray-500">
-              • Multi-agent collaboration
-              • Diverse AI perspectives
-              • Real-time responses
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-xl font-semibold mb-3">AI Benchmarks</h3>
-            <p className="text-gray-600 mb-4">
-              Run performance benchmarks on AI agents to evaluate their accuracy, latency, and throughput.
-            </p>
-            <div className="text-sm text-gray-500">
-              • Performance metrics
-              • Accuracy testing
-              • Latency analysis
-            </div>
-          </div>
+          <Card className="text-left">
+            <CardHeader>
+              <CardTitle className="text-xl">AI Council Chat</CardTitle>
+              <CardDescription className="text-gray-600">
+                Engage with multiple AI agents in collaborative discussions and get
+                diverse perspectives on your queries.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-500 space-y-1">
+              <p>• Multi-agent collaboration</p>
+              <p>• Diverse AI perspectives</p>
+              <p>• Real-time responses</p>
+            </CardContent>
+          </Card>
+          <Card className="text-left">
+            <CardHeader>
+              <CardTitle className="text-xl">AI Benchmarks</CardTitle>
+              <CardDescription className="text-gray-600">
+                Run performance benchmarks on AI agents to evaluate their accuracy,
+                latency, and throughput.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-500 space-y-1">
+              <p>• Performance metrics</p>
+              <p>• Accuracy testing</p>
+              <p>• Latency analysis</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

@@ -1,6 +1,16 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export function BenchmarkPage() {
   const [benchmarkName, setBenchmarkName] = useState("");
@@ -41,94 +51,111 @@ export function BenchmarkPage() {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto">
           {/* Start New Benchmark */}
-          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <h2 className="text-lg font-semibold mb-4">Start New Benchmark</h2>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Start New Benchmark</CardTitle>
+            </CardHeader>
+            <CardContent>
             <form onSubmit={handleStartBenchmark} className="flex gap-3">
-              <input
+              <Input
                 type="text"
                 value={benchmarkName}
                 onChange={(e) => setBenchmarkName(e.target.value)}
                 placeholder="Enter benchmark name..."
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+                className="flex-1"
               />
-              <button
+              <Button
                 type="submit"
                 disabled={!benchmarkName.trim() || isRunning}
-                className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {isRunning ? "Starting..." : "Start Benchmark"}
-              </button>
+              </Button>
             </form>
-          </div>
+            </CardContent>
+          </Card>
 
           {/* Benchmark Results */}
           <div className="space-y-4">
             {benchmarks.length === 0 ? (
-              <div className="text-center text-gray-500 py-12">
-                <div className="text-4xl mb-4">📊</div>
-                <p className="text-lg mb-2">No benchmarks yet</p>
-                <p className="text-sm">Start your first benchmark to see performance metrics</p>
-              </div>
+              <Card>
+                <CardHeader className="text-center">
+                  <CardTitle>No benchmarks yet</CardTitle>
+                  <CardDescription>
+                    Start your first benchmark to see performance metrics.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="text-center text-4xl pb-6">📊</CardContent>
+              </Card>
             ) : (
               benchmarks.map((benchmark) => (
-                <div key={benchmark._id} className="bg-white rounded-lg shadow-sm border p-6">
-                  <div className="flex items-center justify-between mb-4">
+                <Card key={benchmark._id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-lg font-semibold">{benchmark.name}</h3>
-                      <p className="text-sm text-gray-500">
+                        <CardTitle className="text-lg">{benchmark.name}</CardTitle>
+                        <CardDescription>
                         Started {new Date(benchmark.startTime).toLocaleString()}
-                      </p>
+                        </CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
+                      <Badge
+                        variant={
                           benchmark.status === "completed"
-                            ? "bg-green-100 text-green-800"
+                            ? "success"
                             : benchmark.status === "running"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
+                              ? "info"
+                              : "destructive"
+                        }
                       >
                         {benchmark.status}
-                      </span>
+                      </Badge>
                       <span className="text-sm text-gray-500">
                         {formatDuration(benchmark.startTime, benchmark.endTime)}
                       </span>
                     </div>
                   </div>
+                  </CardHeader>
 
                   {benchmark.results && (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <div className="text-sm text-gray-600">Accuracy</div>
-                        <div className="text-2xl font-bold text-green-600">
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card className="bg-gray-50 border-gray-100 shadow-none">
+                          <CardContent className="p-4">
+                            <div className="text-sm text-gray-600">Accuracy</div>
+                            <div className="text-2xl font-bold text-green-600">
                           {formatPercentage(benchmark.results.accuracy)}
-                        </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-gray-50 border-gray-100 shadow-none">
+                          <CardContent className="p-4">
+                            <div className="text-sm text-gray-600">Latency</div>
+                            <div className="text-2xl font-bold text-blue-600">
+                              {benchmark.results.latency.toFixed(0)}ms
+                            </div>
+                          </CardContent>
+                        </Card>
+                        <Card className="bg-gray-50 border-gray-100 shadow-none">
+                          <CardContent className="p-4">
+                            <div className="text-sm text-gray-600">Throughput</div>
+                            <div className="text-2xl font-bold text-purple-600">
+                              {benchmark.results.throughput.toFixed(0)} req/s
+                            </div>
+                          </CardContent>
+                        </Card>
                       </div>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <div className="text-sm text-gray-600">Latency</div>
-                        <div className="text-2xl font-bold text-blue-600">
-                          {benchmark.results.latency.toFixed(0)}ms
-                        </div>
-                      </div>
-                      <div className="bg-gray-50 p-4 rounded-lg">
-                        <div className="text-sm text-gray-600">Throughput</div>
-                        <div className="text-2xl font-bold text-purple-600">
-                          {benchmark.results.throughput.toFixed(0)} req/s
-                        </div>
-                      </div>
-                    </div>
+                    </CardContent>
                   )}
 
                   {benchmark.status === "running" && (
-                    <div className="mt-4">
+                    <CardContent className="pt-0">
                       <div className="flex items-center gap-2 text-blue-600">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
                         <span className="text-sm">Running benchmark...</span>
                       </div>
-                    </div>
+                    </CardContent>
                   )}
-                </div>
+                </Card>
               ))
             )}
           </div>

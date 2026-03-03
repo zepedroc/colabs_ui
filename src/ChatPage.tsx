@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export function ChatPage() {
   const [message, setMessage] = useState("");
@@ -24,7 +27,7 @@ export function ChatPage() {
 
     const messageToSend = message;
     setMessage("");
-    
+
     try {
       await sendMessage({
         content: messageToSend,
@@ -46,32 +49,40 @@ export function ChatPage() {
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-4xl mx-auto space-y-4">
           {messages.length === 0 ? (
-            <div className="text-center text-gray-500 py-12">
-              <div className="text-4xl mb-4">🤖</div>
-              <p className="text-lg mb-2">Start a conversation with the AI council</p>
-              <p className="text-sm">Ask questions and get collaborative insights from multiple AI agents</p>
-            </div>
+            <Card>
+              <CardHeader className="text-center">
+                <CardTitle className="text-lg">Start a conversation with the AI council</CardTitle>
+                <CardDescription>
+                  Ask questions and get collaborative insights from multiple AI agents.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center text-4xl pb-6">🤖</CardContent>
+            </Card>
           ) : (
             messages.map((msg) => (
               <div
                 key={msg._id}
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                <div
-                  className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                    msg.role === "user"
-                      ? "bg-primary text-white"
-                      : "bg-white border shadow-sm"
+                <Card
+                  className={`max-w-xs lg:max-w-md ${
+                    msg.role === "user" ? "bg-primary border-primary text-white" : ""
                   }`}
                 >
-                  <div className="text-sm font-medium mb-1">
-                    {msg.role === "user" ? "You" : "AI Council"}
-                  </div>
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
-                  <div className="text-xs opacity-70 mt-1">
-                    {new Date(msg._creationTime).toLocaleTimeString()}
-                  </div>
-                </div>
+                  <CardContent className="p-4">
+                    <div className="text-sm font-medium mb-1">
+                      {msg.role === "user" ? "You" : "AI Council"}
+                    </div>
+                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    <div
+                      className={`text-xs mt-2 ${
+                        msg.role === "user" ? "text-blue-100" : "text-gray-500"
+                      }`}
+                    >
+                      {new Date(msg._creationTime).toLocaleTimeString()}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             ))
           )}
@@ -82,20 +93,16 @@ export function ChatPage() {
       <div className="bg-white border-t p-6">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
           <div className="flex gap-3">
-            <input
+            <Input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Ask the AI council anything..."
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent outline-none"
+              className="flex-1 h-11"
             />
-            <button
-              type="submit"
-              disabled={!message.trim()}
-              className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+            <Button type="submit" disabled={!message.trim()} className="h-11">
               Send
-            </button>
+            </Button>
           </div>
         </form>
       </div>
