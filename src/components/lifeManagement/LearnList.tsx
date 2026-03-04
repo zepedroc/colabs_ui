@@ -1,11 +1,11 @@
-import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import type { Id } from "../../../convex/_generated/dataModel";
+import { Trash2 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Trash2 } from "lucide-react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 export function LearnList() {
   const [newLearning, setNewLearning] = useState("");
@@ -47,7 +47,7 @@ export function LearnList() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 flex-shrink-0 text-gray-500 hover:text-red-600"
+                  className="h-8 w-8 shrink-0 text-gray-500 hover:text-red-600"
                   onClick={() => handleRemove(learning._id)}
                 >
                   <Trash2 className="h-4 w-4" />

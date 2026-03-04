@@ -1,8 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
-import type { Doc, Id } from "../../../convex/_generated/dataModel";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { AlertTriangle, ArrowDown, ArrowUp, Minus, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -22,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trash2, Pencil, Plus, Tag, ArrowDown, Minus, ArrowUp, AlertTriangle } from "lucide-react";
+import { api } from "../../../convex/_generated/api";
+import type { Doc, Id } from "../../../convex/_generated/dataModel";
 
 type TaskStatus = "todo" | "in_progress" | "done";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -44,8 +44,14 @@ const PRIORITY_CONFIG: Record<TaskPriority, { icon: React.ElementType; color: st
 };
 
 const DEFAULT_TAG_COLORS = [
-  "#ef4444", "#f97316", "#eab308", "#22c55e",
-  "#14b8a6", "#3b82f6", "#8b5cf6", "#ec4899",
+  "#ef4444",
+  "#f97316",
+  "#eab308",
+  "#22c55e",
+  "#14b8a6",
+  "#3b82f6",
+  "#8b5cf6",
+  "#ec4899",
 ];
 
 function CreateTagInput({
@@ -76,7 +82,7 @@ function CreateTagInput({
         type="color"
         value={color}
         onChange={(e) => setColor(e.target.value)}
-        className="h-9 w-9 rounded border cursor-pointer"
+        className="h-9 w-9 rounded-sm border cursor-pointer"
       />
       <Button type="button" variant="outline" size="sm" onClick={handleCreate}>
         Add
@@ -85,10 +91,7 @@ function CreateTagInput({
   );
 }
 
-function getTasksByStatus(
-  tasks: Doc<"lifeManagementTasks">[],
-  status: TaskStatus
-) {
+function getTasksByStatus(tasks: Doc<"lifeManagementTasks">[], status: TaskStatus) {
   return tasks
     .filter((t) => t.status === status)
     .sort((a, b) => {
@@ -130,9 +133,7 @@ export function KanbanBoard() {
     if (!task) return tasks;
 
     const movedTask = { ...task, status: destStatus };
-    const otherTasks = tasks.filter(
-      (t) => !(t._id === taskId && t.status === sourceStatus)
-    );
+    const otherTasks = tasks.filter((t) => !(t._id === taskId && t.status === sourceStatus));
     const sourceTasks = otherTasks.filter((t) => t.status === sourceStatus);
     const destTasks = otherTasks.filter((t) => t.status === destStatus);
     destTasks.splice(destIndex, 0, movedTask);
@@ -234,9 +235,7 @@ export function KanbanBoard() {
     await createTag({ name: name.trim(), color });
   };
 
-  const editingTask = editingTaskId
-    ? displayedTasks.find((t) => t._id === editingTaskId)
-    : null;
+  const editingTask = editingTaskId ? displayedTasks.find((t) => t._id === editingTaskId) : null;
 
   return (
     <>
@@ -291,7 +290,7 @@ export function KanbanBoard() {
                 }}
                 placeholder="What needs to be done?"
                 rows={3}
-                className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-gray-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 resize-y"
               />
             </div>
             <div className="grid gap-2">
@@ -302,12 +301,15 @@ export function KanbanBoard() {
                 onChange={(e) => setNewTaskDescription(e.target.value)}
                 placeholder="Optional details..."
                 rows={2}
-                className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y"
+                className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-gray-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary resize-y"
               />
             </div>
             <div className="grid gap-2">
               <Label>Priority</Label>
-              <Select value={newTaskPriority} onValueChange={(v) => setNewTaskPriority(v as TaskPriority)}>
+              <Select
+                value={newTaskPriority}
+                onValueChange={(v) => setNewTaskPriority(v as TaskPriority)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select priority" />
                 </SelectTrigger>
@@ -338,14 +340,20 @@ export function KanbanBoard() {
                     type="button"
                     onClick={() =>
                       setNewTaskTagIds((prev) =>
-                        prev.includes(tag._id) ? prev.filter((x) => x !== tag._id) : [...prev, tag._id]
+                        prev.includes(tag._id)
+                          ? prev.filter((x) => x !== tag._id)
+                          : [...prev, tag._id],
                       )
                     }
                     className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-                      newTaskTagIds.includes(tag._id) ? "ring-2 ring-offset-1" : "opacity-60 hover:opacity-100"
+                      newTaskTagIds.includes(tag._id)
+                        ? "ring-2 ring-offset-1"
+                        : "opacity-60 hover:opacity-100"
                     }`}
                     style={{
-                      backgroundColor: newTaskTagIds.includes(tag._id) ? tag.color : `${tag.color}33`,
+                      backgroundColor: newTaskTagIds.includes(tag._id)
+                        ? tag.color
+                        : `${tag.color}33`,
                       borderColor: tag.color,
                       color: newTaskTagIds.includes(tag._id) ? "#fff" : tag.color,
                     }}
@@ -410,7 +418,7 @@ function TaskEditDialog({
       setPriority((task.priority as TaskPriority) ?? DEFAULT_PRIORITY);
       setSelectedTagIds(task.tagIds ?? []);
     }
-  }, [task?._id]);
+  }, [task?._id, task?.description, task?.priority, task?.tagIds, task]);
 
   const handleSave = async () => {
     const t = title.trim();
@@ -426,7 +434,7 @@ function TaskEditDialog({
 
   const toggleTag = (tagId: Id<"lifeManagementTags">) => {
     setSelectedTagIds((prev) =>
-      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
+      prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId],
     );
   };
 
@@ -457,7 +465,7 @@ function TaskEditDialog({
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Optional details..."
               rows={3}
-              className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary resize-y"
+              className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-gray-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary resize-y"
             />
           </div>
           <div className="grid gap-2">
@@ -498,7 +506,9 @@ function TaskEditDialog({
                       : "opacity-60 hover:opacity-100"
                   }`}
                   style={{
-                    backgroundColor: selectedTagIds.includes(tag._id) ? tag.color : `${tag.color}33`,
+                    backgroundColor: selectedTagIds.includes(tag._id)
+                      ? tag.color
+                      : `${tag.color}33`,
                     borderColor: tag.color,
                     color: selectedTagIds.includes(tag._id) ? "#fff" : tag.color,
                   }}
@@ -541,7 +551,7 @@ function KanbanColumn({
   const isDone = column.id === "done";
 
   return (
-    <div className="flex-shrink-0 w-72 flex flex-col">
+    <div className="shrink-0 w-72 flex flex-col">
       <h3 className="font-semibold text-slate-700 mb-3">{column.title}</h3>
       <Droppable droppableId={column.id}>
         {(provided) => (
@@ -584,16 +594,19 @@ function KanbanColumn({
                             {task.priority && (
                               <span
                                 className="flex items-center gap-1 text-[10px] font-medium uppercase mr-2"
-                                style={{ color: PRIORITY_CONFIG[task.priority]?.color ?? "#64748b" }}
+                                style={{
+                                  color: PRIORITY_CONFIG[task.priority]?.color ?? "#64748b",
+                                }}
                               >
                                 {(() => {
-                                  const { icon: Icon } = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.low;
+                                  const { icon: Icon } =
+                                    PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.low;
                                   return <Icon className="h-3 w-3 shrink-0" />;
                                 })()}
                                 {task.priority}
                               </span>
                             )}
-                            <span className="text-sm line-clamp-2 break-words block">
+                            <span className="text-sm line-clamp-2 wrap-break-word block">
                               {task.title}
                             </span>
                             {task.description && (
@@ -602,7 +615,7 @@ function KanbanColumn({
                               </p>
                             )}
                           </div>
-                          <div className="flex gap-0.5 flex-shrink-0">
+                          <div className="flex gap-0.5 shrink-0">
                             <Button
                               variant="ghost"
                               size="icon"

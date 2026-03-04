@@ -1,8 +1,6 @@
-import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { api } from "../convex/_generated/api";
-import type { Doc } from "../convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,15 +11,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { api } from "../convex/_generated/api";
+import type { Doc } from "../convex/_generated/dataModel";
 
 type CouncilMode = "parallel" | "conversation";
 
 const AGENT_COLORS = [
-  { border: "border-blue-500", bg: "bg-blue-50", accent: "text-blue-700", label: "bg-blue-100 text-blue-800" },
-  { border: "border-emerald-500", bg: "bg-emerald-50", accent: "text-emerald-700", label: "bg-emerald-100 text-emerald-800" },
-  { border: "border-amber-500", bg: "bg-amber-50", accent: "text-amber-700", label: "bg-amber-100 text-amber-800" },
-  { border: "border-violet-500", bg: "bg-violet-50", accent: "text-violet-700", label: "bg-violet-100 text-violet-800" },
-  { border: "border-rose-500", bg: "bg-rose-50", accent: "text-rose-700", label: "bg-rose-100 text-rose-800" },
+  {
+    border: "border-blue-500",
+    bg: "bg-blue-50",
+    accent: "text-blue-700",
+    label: "bg-blue-100 text-blue-800",
+  },
+  {
+    border: "border-emerald-500",
+    bg: "bg-emerald-50",
+    accent: "text-emerald-700",
+    label: "bg-emerald-100 text-emerald-800",
+  },
+  {
+    border: "border-amber-500",
+    bg: "bg-amber-50",
+    accent: "text-amber-700",
+    label: "bg-amber-100 text-amber-800",
+  },
+  {
+    border: "border-violet-500",
+    bg: "bg-violet-50",
+    accent: "text-violet-700",
+    label: "bg-violet-100 text-violet-800",
+  },
+  {
+    border: "border-rose-500",
+    bg: "bg-rose-50",
+    accent: "text-rose-700",
+    label: "bg-rose-100 text-rose-800",
+  },
 ] as const;
 
 /** Assign colors by index so each agent in a group gets a unique color. Same model = same index = same color. */
@@ -55,14 +80,14 @@ function groupMessages(messages: Doc<"chatMessages">[]): MessageGroup[] {
       }
       result.push({ type: "user", messages: [msg] });
     } else {
-      if ((msg.source === "council_round") && msg.round != null) {
+      if (msg.source === "council_round" && msg.round != null) {
         if (currentGroup && currentGroup.type === "round" && currentGroup.round === msg.round) {
           currentGroup.messages.push(msg);
         } else {
           if (currentGroup) result.push(currentGroup);
           currentGroup = { type: "round", round: msg.round, messages: [msg] };
         }
-      } else if ((msg.source === "council_final")) {
+      } else if (msg.source === "council_final") {
         if (currentGroup && currentGroup.type === "final") {
           currentGroup.messages.push(msg);
         } else {
@@ -84,7 +109,7 @@ function groupMessages(messages: Doc<"chatMessages">[]): MessageGroup[] {
 /** Returns true if final group content is identical to the last round group. */
 function isFinalSameAsLastRound(
   finalGroup: { type: "final"; messages: Doc<"chatMessages">[] },
-  lastRoundGroup: { type: "round"; round: number; messages: Doc<"chatMessages">[] } | null
+  lastRoundGroup: { type: "round"; round: number; messages: Doc<"chatMessages">[] } | null,
 ): boolean {
   if (!lastRoundGroup) return false;
   const finalByModel = new Map(finalGroup.messages.map((m) => [m.model ?? "", m]));
@@ -92,7 +117,10 @@ function isFinalSameAsLastRound(
   if (finalByModel.size !== roundByModel.size) return false;
   for (const [model, finalMsg] of finalByModel) {
     const roundMsg = roundByModel.get(model);
-    if (!roundMsg || extractMessageBody(finalMsg.content) !== extractMessageBody(roundMsg.content)) {
+    if (
+      !roundMsg ||
+      extractMessageBody(finalMsg.content) !== extractMessageBody(roundMsg.content)
+    ) {
       return false;
     }
   }
@@ -110,13 +138,13 @@ export function ChatPage() {
   const messages = useQuery(api.chat.getMessages, { sessionId }) || [];
   const sendMessage = useMutation(api.chat.sendMessage);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [scrollToBottom]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,7 +177,10 @@ export function ChatPage() {
     const lastRound = [...groups]
       .slice(0, idx)
       .reverse()
-      .find((g): g is { type: "round"; round: number; messages: Doc<"chatMessages">[] } => g.type === "round");
+      .find(
+        (g): g is { type: "round"; round: number; messages: Doc<"chatMessages">[] } =>
+          g.type === "round",
+      );
     return !isFinalSameAsLastRound(group, lastRound ?? null);
   });
 
@@ -178,7 +209,7 @@ export function ChatPage() {
               <CardContent className="text-center text-4xl pb-6">🤖</CardContent>
             </Card>
           ) : (
-            filteredGroups.map((group, groupIdx) => {
+            filteredGroups.map((group) => {
               if (group.type === "user") {
                 const msg = group.messages[0];
                 return (
@@ -199,15 +230,16 @@ export function ChatPage() {
               }
 
               if (group.type === "round" || group.type === "final") {
-                const title =
-                  group.type === "round"
-                    ? `Round ${group.round}`
-                    : "Final answers";
-                const sortedMessages = [...group.messages].sort(
-                  (a, b) => (a.model ?? "").localeCompare(b.model ?? "")
+                const title = group.type === "round" ? `Round ${group.round}` : "Final answers";
+                const sortedMessages = [...group.messages].sort((a, b) =>
+                  (a.model ?? "").localeCompare(b.model ?? ""),
                 );
+                const groupKey =
+                  group.type === "round"
+                    ? `round-${group.round}`
+                    : `final-${group.messages.map((m) => m._id).join("-")}`;
                 return (
-                  <div key={`${group.type}-${group.type === "round" ? group.round : "final"}-${groupIdx}`}>
+                  <div key={groupKey}>
                     <h3 className="text-sm font-semibold text-gray-600 mb-2">{title}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {sortedMessages.map((msg, idx) => {
@@ -230,7 +262,9 @@ export function ChatPage() {
                               </div>
                             </CardHeader>
                             <CardContent className="px-4 pb-4 pt-0">
-                              <div className={`text-sm prose prose-sm max-w-none ${colors.accent} prose-p:my-1 prose-ul:my-1 prose-ol:my-1`}>
+                              <div
+                                className={`text-sm prose prose-sm max-w-none ${colors.accent} prose-p:my-1 prose-ul:my-1 prose-ol:my-1`}
+                              >
                                 <ReactMarkdown>{body}</ReactMarkdown>
                               </div>
                             </CardContent>
@@ -246,7 +280,7 @@ export function ChatPage() {
                 <div key={msg._id} className="flex justify-start">
                   <Card
                     className={
-                      (msg.source === "council_error")
+                      msg.source === "council_error"
                         ? "w-full border-red-200 bg-red-50"
                         : "max-w-xs lg:max-w-md"
                     }

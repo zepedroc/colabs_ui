@@ -1,25 +1,19 @@
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
+import { NavLink, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "../convex/_generated/api";
+import { BenchmarkPage } from "./BenchmarkPage";
+import { ChatPage } from "./ChatPage";
+import { LifeManagementPage } from "./LifeManagementPage";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
-import { Toaster } from "sonner";
-import { Routes, Route, NavLink } from "react-router-dom";
-import { ChatPage } from "./ChatPage";
-import { BenchmarkPage } from "./BenchmarkPage";
-import { LifeManagementPage } from "./LifeManagementPage";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 
 export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm h-16 flex justify-between items-center border-b shadow-sm px-4">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xs h-16 flex justify-between items-center border-b shadow-xs px-4">
         <div className="flex items-center gap-6">
           <NavLink to="/">
             <Button
@@ -104,9 +98,7 @@ function UnauthenticatedContent() {
             <CardDescription className="text-base">
               Collaborative AI Agents Platform
             </CardDescription>
-            <p className="text-sm text-gray-600">
-              Sign in to start collaborating with AI agents
-            </p>
+            <p className="text-sm text-gray-600">Sign in to start collaborating with AI agents</p>
           </CardHeader>
           <CardContent>
             <SignInForm />
@@ -132,8 +124,8 @@ function HomePage() {
             <CardHeader>
               <CardTitle className="text-xl">AI Council Chat</CardTitle>
               <CardDescription className="text-gray-600">
-                Engage with multiple AI agents in collaborative discussions and get
-                diverse perspectives on your queries.
+                Engage with multiple AI agents in collaborative discussions and get diverse
+                perspectives on your queries.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-gray-500 space-y-1">
@@ -146,8 +138,8 @@ function HomePage() {
             <CardHeader>
               <CardTitle className="text-xl">AI Benchmarks</CardTitle>
               <CardDescription className="text-gray-600">
-                Run performance benchmarks on AI agents to evaluate their accuracy,
-                latency, and throughput.
+                Run performance benchmarks on AI agents to evaluate their accuracy, latency, and
+                throughput.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-gray-500 space-y-1">

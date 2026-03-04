@@ -1,11 +1,11 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id } from "./_generated/dataModel";
-import { getOpenRouterApiKey } from "./openrouterConfig";
+import { internalAction, internalMutation, mutation, query } from "./_generated/server";
 import { getCouncilModels } from "./aiConfig";
 import { queryCouncilStream } from "./council";
+import { getOpenRouterApiKey } from "./openrouterConfig";
 
 const councilMode = v.union(v.literal("parallel"), v.literal("conversation"));
 
@@ -67,7 +67,11 @@ export const appendAssistantMessage = internalMutation({
     userId: v.id("users"),
     sessionId: v.string(),
     content: v.string(),
-    source: v.union(v.literal("council_round"), v.literal("council_final"), v.literal("council_error")),
+    source: v.union(
+      v.literal("council_round"),
+      v.literal("council_final"),
+      v.literal("council_error"),
+    ),
     round: v.optional(v.number()),
     model: v.optional(v.string()),
   },
@@ -102,7 +106,7 @@ export const runCouncilQuery = internalAction({
         models,
         args.query,
         args.rounds,
-        args.mode
+        args.mode,
       )) {
         const trimmed = line.trim();
         if (!trimmed) continue;
@@ -146,7 +150,9 @@ export const runCouncilQuery = internalAction({
               sessionId: args.sessionId,
               content:
                 `Final · ${modelResponse.model ?? "unknown model"}\n` +
-                (modelResponse.error ? `Error: ${modelResponse.error}` : modelResponse.content || "(no content)"),
+                (modelResponse.error
+                  ? `Error: ${modelResponse.error}`
+                  : modelResponse.content || "(no content)"),
               source: "council_final",
               model: modelResponse.model,
             });

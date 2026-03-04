@@ -38,13 +38,7 @@ export function SignInForm() {
       >
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            name="email"
-            placeholder="you@example.com"
-            required
-          />
+          <Input id="email" type="email" name="email" placeholder="you@example.com" required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Password</Label>
@@ -60,11 +54,7 @@ export function SignInForm() {
           {flow === "signIn" ? "Sign in" : "Sign up"}
         </Button>
         <div className="text-center text-sm text-secondary">
-          <span>
-            {flow === "signIn"
-              ? "Don't have an account? "
-              : "Already have an account? "}
-          </span>
+          <span>{flow === "signIn" ? "Don't have an account? " : "Already have an account? "}</span>
           <Button
             type="button"
             variant="link"
@@ -80,11 +70,7 @@ export function SignInForm() {
         <span className="text-secondary text-sm">or</span>
         <Separator className="flex-1" />
       </div>
-      <Button
-        variant="outline"
-        className="w-full"
-        onClick={() => void signIn("anonymous")}
-      >
+      <Button variant="outline" className="w-full" onClick={() => void signIn("anonymous")}>
         Sign in anonymously
       </Button>
     </div>

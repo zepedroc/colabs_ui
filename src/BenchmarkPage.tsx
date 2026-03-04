@@ -1,17 +1,11 @@
-import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
-import type { Id } from "../convex/_generated/dataModel";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 export function BenchmarkPage() {
   const [benchmarkName, setBenchmarkName] = useState("");
@@ -249,10 +243,14 @@ export function BenchmarkPage() {
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium">{modelResult.model}</span>
                               <div className="flex gap-2">
-                                <Badge variant={modelResult.round1Correct ? "success" : "destructive"}>
+                                <Badge
+                                  variant={modelResult.round1Correct ? "success" : "destructive"}
+                                >
                                   round1: {modelResult.round1Option ?? "n/a"}
                                 </Badge>
-                                <Badge variant={modelResult.finalCorrect ? "success" : "destructive"}>
+                                <Badge
+                                  variant={modelResult.finalCorrect ? "success" : "destructive"}
+                                >
                                   final: {modelResult.finalOption ?? "n/a"}
                                 </Badge>
                               </div>
@@ -272,7 +270,6 @@ export function BenchmarkPage() {
                   </Card>
                 ))
             )}
-
           </div>
         </div>
       </div>

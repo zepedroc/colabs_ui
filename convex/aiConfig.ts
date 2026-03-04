@@ -13,8 +13,8 @@ export const DEFAULT_COUNCIL_MODELS = [
  * COUNCIL_MODELS: JSON array or comma-separated string.
  */
 export function getCouncilModels(): string[] {
-  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } })
-    .process?.env;
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
   const raw = env?.COUNCIL_MODELS?.trim();
   if (!raw) {
     return [...DEFAULT_COUNCIL_MODELS];
@@ -29,6 +29,9 @@ export function getCouncilModels(): string[] {
       // fall through to default
     }
   }
-  const models = raw.split(",").map((m) => m.trim()).filter(Boolean);
+  const models = raw
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
   return models.length > 0 ? models : [...DEFAULT_COUNCIL_MODELS];
 }

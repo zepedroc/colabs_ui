@@ -15,7 +15,7 @@ export class OpenRouterRequestError extends Error {
     message: string,
     public readonly statusCode: number | null,
     public readonly retryable: boolean,
-    public readonly category: string
+    public readonly category: string,
   ) {
     super(message);
     this.name = "OpenRouterRequestError";
@@ -30,10 +30,13 @@ export interface ChatMessage {
 function shorten(value: string, maxLen = 320): string {
   const flattened = value.replace(/\s+/g, " ").trim();
   if (flattened.length <= maxLen) return flattened;
-  return flattened.slice(0, maxLen) + "...";
+  return `${flattened.slice(0, maxLen)}...`;
 }
 
-function extractErrorFromBody(body: string | null): { message: string | null; providerName: string | null } {
+function extractErrorFromBody(body: string | null): {
+  message: string | null;
+  providerName: string | null;
+} {
   if (!body) return { message: null, providerName: null };
   try {
     const payload = JSON.parse(body) as Record<string, unknown>;
@@ -52,13 +55,12 @@ function extractErrorFromBody(body: string | null): { message: string | null; pr
 function buildUserMessage(
   statusCode: number | null,
   detail: string,
-  providerName: string | null
+  providerName: string | null,
 ): string {
   const suffix = providerName ? ` (provider: ${providerName})` : "";
   const safeDetail = detail ? shorten(detail) : "Unknown error from OpenRouter.";
 
-  if (statusCode === 400)
-    return `OpenRouter rejected the request (400 Bad Request): ${safeDetail}`;
+  if (statusCode === 400) return `OpenRouter rejected the request (400 Bad Request): ${safeDetail}`;
   if (statusCode === 401)
     return "OpenRouter authentication failed (401 Unauthorized). Check OPENROUTER_API_KEY.";
   if (statusCode === 402)
@@ -79,8 +81,7 @@ function buildUserMessage(
     return `OpenRouter upstream/provider error (502 Bad Gateway)${suffix}: ${safeDetail}`;
   if (statusCode === 503)
     return `OpenRouter has no available provider (503 Service Unavailable)${suffix}: ${safeDetail}`;
-  if (statusCode === 504)
-    return `OpenRouter gateway timeout (504)${suffix}: ${safeDetail}`;
+  if (statusCode === 504) return `OpenRouter gateway timeout (504)${suffix}: ${safeDetail}`;
   if (statusCode != null)
     return `OpenRouter request failed (HTTP ${statusCode})${suffix}: ${safeDetail}`;
   return `OpenRouter request failed: ${safeDetail}`;
@@ -88,10 +89,7 @@ function buildUserMessage(
 
 function retryDelayMs(failedAttempt: number): number {
   const exponent = failedAttempt - 1;
-  const baseDelay = Math.min(
-    INITIAL_BACKOFF_MS * Math.pow(2, exponent),
-    MAX_BACKOFF_MS
-  );
+  const baseDelay = Math.min(INITIAL_BACKOFF_MS * 2 ** exponent, MAX_BACKOFF_MS);
   return baseDelay + Math.random() * JITTER_MS;
 }
 
@@ -106,7 +104,7 @@ function sleep(ms: number): Promise<void> {
 export async function sendQuery(
   apiKey: string,
   model: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
 ): Promise<string> {
   let lastError: OpenRouterRequestError | null = null;
 
@@ -131,16 +129,12 @@ export async function sendQuery(
         const { message, providerName } = extractErrorFromBody(body);
         const detail = message || response.statusText || body;
         const retryable = RETRYABLE_STATUS_CODES.has(response.status);
-        const userMessage = buildUserMessage(
-          response.status,
-          detail,
-          providerName
-        );
+        const userMessage = buildUserMessage(response.status, detail, providerName);
         lastError = new OpenRouterRequestError(
           userMessage,
           response.status,
           retryable,
-          "api_error"
+          "api_error",
         );
         if (retryable && attempt < MAX_ATTEMPTS) {
           await sleep(retryDelayMs(attempt));
@@ -157,7 +151,7 @@ export async function sendQuery(
           "OpenRouter returned invalid JSON.",
           response.status,
           response.status >= 500,
-          "parse_error"
+          "parse_error",
         );
       }
 
@@ -167,7 +161,7 @@ export async function sendQuery(
           "OpenRouter returned no choices.",
           null,
           true,
-          "no_content"
+          "no_content",
         );
       }
 
@@ -177,7 +171,7 @@ export async function sendQuery(
           "OpenRouter returned empty response content.",
           null,
           true,
-          "no_content"
+          "no_content",
         );
       }
 
@@ -197,7 +191,7 @@ export async function sendQuery(
             : `Network error while contacting OpenRouter: ${shorten(e.message)}`,
           null,
           true,
-          "transport_error"
+          "transport_error",
         );
         if (attempt < MAX_ATTEMPTS) {
           await sleep(retryDelayMs(attempt));
@@ -209,10 +203,13 @@ export async function sendQuery(
     }
   }
 
-  throw lastError ?? new OpenRouterRequestError(
-    "OpenRouter request failed after retries.",
-    null,
-    false,
-    "retry_exhausted"
+  throw (
+    lastError ??
+    new OpenRouterRequestError(
+      "OpenRouter request failed after retries.",
+      null,
+      false,
+      "retry_exhausted",
+    )
   );
 }

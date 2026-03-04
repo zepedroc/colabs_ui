@@ -1,12 +1,8 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
 
-const taskStatus = v.union(
-  v.literal("todo"),
-  v.literal("in_progress"),
-  v.literal("done"),
-);
+const taskStatus = v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done"));
 
 const taskPriority = v.union(
   v.literal("low"),
@@ -85,9 +81,7 @@ export const listTasks = query({
     for (const status of statuses) {
       const tasks = await ctx.db
         .query("lifeManagementTasks")
-        .withIndex("by_user_and_status", (q) =>
-          q.eq("userId", userId).eq("status", status),
-        )
+        .withIndex("by_user_and_status", (q) => q.eq("userId", userId).eq("status", status))
         .collect();
       allTasks.push(...tasks);
     }
@@ -122,14 +116,10 @@ export const createTask = mutation({
 
     const existingTasks = await ctx.db
       .query("lifeManagementTasks")
-      .withIndex("by_user_and_status", (q) =>
-        q.eq("userId", userId).eq("status", args.status),
-      )
+      .withIndex("by_user_and_status", (q) => q.eq("userId", userId).eq("status", args.status))
       .collect();
 
-    const order = existingTasks.length > 0
-      ? Math.max(...existingTasks.map((t) => t.order)) + 1
-      : 0;
+    const order = existingTasks.length > 0 ? Math.max(...existingTasks.map((t) => t.order)) + 1 : 0;
 
     return await ctx.db.insert("lifeManagementTasks", {
       userId,
@@ -198,9 +188,7 @@ export const moveTask = mutation({
       return (
         await ctx.db
           .query("lifeManagementTasks")
-          .withIndex("by_user_and_status", (q) =>
-            q.eq("userId", userId).eq("status", status),
-          )
+          .withIndex("by_user_and_status", (q) => q.eq("userId", userId).eq("status", status))
           .collect()
       ).sort((a, b) => a.order - b.order);
     };
@@ -347,9 +335,7 @@ export const addLearning = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    const order = existing.length > 0
-      ? Math.max(...existing.map((l) => l.order)) + 1
-      : 0;
+    const order = existing.length > 0 ? Math.max(...existing.map((l) => l.order)) + 1 : 0;
 
     return await ctx.db.insert("lifeManagementLearnings", {
       userId,

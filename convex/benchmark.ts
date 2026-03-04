@@ -1,12 +1,12 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id } from "./_generated/dataModel";
-import { getOpenRouterApiKey } from "./openrouterConfig";
+import { internalAction, internalMutation, mutation, query } from "./_generated/server";
 import { getCouncilModels } from "./aiConfig";
 import { runBenchmarkStream } from "./benchmarkLogic";
 import benchmarkQuestions from "./benchmarks/questions.json";
+import { getOpenRouterApiKey } from "./openrouterConfig";
 
 const benchmarkAnswerStatus = v.union(
   v.literal("correct"),
@@ -90,7 +90,9 @@ export const getBenchmarkCaseResults = query({
 
     return await ctx.db
       .query("benchmarkCaseResults")
-      .withIndex("by_user_and_run", (q) => q.eq("userId", userId).eq("benchmarkRunId", args.benchmarkId))
+      .withIndex("by_user_and_run", (q) =>
+        q.eq("userId", userId).eq("benchmarkRunId", args.benchmarkId),
+      )
       .collect();
   },
 });
@@ -200,13 +202,7 @@ export const runBenchmark = internalAction({
 
       let hasSummary = false;
 
-      for await (const line of runBenchmarkStream(
-        apiKey,
-        models,
-        cases,
-        2,
-        "parallel"
-      )) {
+      for await (const line of runBenchmarkStream(apiKey, models, cases, 2, "parallel")) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 

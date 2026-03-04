@@ -3,7 +3,7 @@
  * No memory feature (omitted per migration plan).
  */
 
-import { sendQuery, type ChatMessage } from "./openrouter";
+import { type ChatMessage, sendQuery } from "./openrouter";
 
 export type CouncilMode = "parallel" | "conversation";
 
@@ -52,7 +52,7 @@ const FINAL_ROUND_PROMPT_TEMPLATE =
 async function querySingleModel(
   apiKey: string,
   model: string,
-  messages: ChatMessage[]
+  messages: ChatMessage[],
 ): Promise<ModelResponse> {
   try {
     const content = await sendQuery(apiKey, model, messages);
@@ -63,10 +63,7 @@ async function querySingleModel(
   }
 }
 
-function formatOtherResponses(
-  previousRound: ModelResponse[],
-  currentModel: string
-): string {
+function formatOtherResponses(previousRound: ModelResponse[], currentModel: string): string {
   const lines = previousRound
     .filter((r) => r.model !== currentModel)
     .map((r) => {
@@ -91,7 +88,7 @@ function formatContext(allRounds: ModelResponse[][]): string {
 function formatContextWithCurrentRound(
   allRounds: ModelResponse[][],
   currentRoundNumber: number,
-  currentRoundResponses: ModelResponse[] | null
+  currentRoundResponses: ModelResponse[] | null,
 ): string {
   const baseContext = formatContext(allRounds);
   if (!currentRoundResponses || currentRoundResponses.length === 0) {
@@ -115,7 +112,7 @@ function buildRoundPrompt(
   model: string,
   mode: CouncilMode,
   allRounds: ModelResponse[][],
-  currentRoundResponses: ModelResponse[] | null
+  currentRoundResponses: ModelResponse[] | null,
 ): string {
   if (totalRounds === 1) {
     return FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", `User query: ${query}`);
@@ -124,28 +121,20 @@ function buildRoundPrompt(
     return FIRST_ROUND_PROMPT_TEMPLATE.replace("{query}", query);
   }
   if (roundNumber === totalRounds) {
-    const context = formatContextWithCurrentRound(
-      allRounds,
-      roundNumber,
-      currentRoundResponses
-    );
+    const context = formatContextWithCurrentRound(allRounds, roundNumber, currentRoundResponses);
     return FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", context);
   }
   if (mode === "conversation") {
-    const context = formatContextWithCurrentRound(
-      allRounds,
-      roundNumber,
-      currentRoundResponses
-    );
+    const context = formatContextWithCurrentRound(allRounds, roundNumber, currentRoundResponses);
     return CONVERSATION_ROUND_PROMPT_TEMPLATE.replace("{context}", context).replace(
       "{query}",
-      query
+      query,
     );
   }
   const otherResponses = formatOtherResponses(allRounds[allRounds.length - 1] ?? [], model);
   return MIDDLE_ROUND_PROMPT_TEMPLATE.replace("{other_responses}", otherResponses).replace(
     "{query}",
-    query
+    query,
   );
 }
 
@@ -153,12 +142,11 @@ function recordResponse(
   response: ModelResponse,
   prompt: string,
   roundNumber: number,
-  modelHistories: Record<string, ChatMessage[]>
+  modelHistories: Record<string, ChatMessage[]>,
 ): ModelResponse {
   const history = modelHistories[response.model];
   history.push({ role: "user", content: prompt });
-  const assistantContent =
-    response.content ?? `[Round ${roundNumber} error] ${response.error}`;
+  const assistantContent = response.content ?? `[Round ${roundNumber} error] ${response.error}`;
   history.push({ role: "assistant", content: assistantContent });
   return response;
 }
@@ -170,7 +158,7 @@ async function runRoundParallel(
   roundNumber: number,
   totalRounds: number,
   allRounds: ModelResponse[][],
-  modelHistories: Record<string, ChatMessage[]>
+  modelHistories: Record<string, ChatMessage[]>,
 ): Promise<ModelResponse[]> {
   const promptsByModel: Record<string, string> = {};
   const tasks = models.map(async (model) => {
@@ -181,13 +169,10 @@ async function runRoundParallel(
       model,
       "parallel",
       allRounds,
-      null
+      null,
     );
     promptsByModel[model] = prompt;
-    const messages: ChatMessage[] = [
-      ...modelHistories[model],
-      { role: "user", content: prompt },
-    ];
+    const messages: ChatMessage[] = [...modelHistories[model], { role: "user", content: prompt }];
     const response = await querySingleModel(apiKey, model, messages);
     return { response, prompt };
   });
@@ -208,7 +193,7 @@ async function runRoundConversation(
   roundNumber: number,
   totalRounds: number,
   allRounds: ModelResponse[][],
-  modelHistories: Record<string, ChatMessage[]>
+  modelHistories: Record<string, ChatMessage[]>,
 ): Promise<ModelResponse[]> {
   if (roundNumber === 1) {
     return runRoundParallel(
@@ -218,7 +203,7 @@ async function runRoundConversation(
       roundNumber,
       totalRounds,
       allRounds,
-      modelHistories
+      modelHistories,
     );
   }
 
@@ -231,12 +216,9 @@ async function runRoundConversation(
       model,
       "conversation",
       allRounds,
-      roundResponses
+      roundResponses,
     );
-    const messages: ChatMessage[] = [
-      ...modelHistories[model],
-      { role: "user", content: prompt },
-    ];
+    const messages: ChatMessage[] = [...modelHistories[model], { role: "user", content: prompt }];
     const response = await querySingleModel(apiKey, model, messages);
     const recorded = recordResponse(response, prompt, roundNumber, modelHistories);
     roundResponses.push(recorded);
@@ -245,15 +227,13 @@ async function runRoundConversation(
 }
 
 function roundResponseEvent(roundNumber: number, response: ModelResponse): string {
-  return (
-    JSON.stringify({
-      type: "round_response",
-      round: roundNumber,
-      model: response.model,
-      content: response.content,
-      error: response.error,
-    }) + "\n"
-  );
+  return `${JSON.stringify({
+    type: "round_response",
+    round: roundNumber,
+    model: response.model,
+    content: response.content,
+    error: response.error,
+  })}\n`;
 }
 
 /**
@@ -265,7 +245,7 @@ export async function* queryCouncilStream(
   models: string[],
   query: string,
   rounds: number,
-  mode: CouncilMode
+  mode: CouncilMode,
 ): AsyncGenerator<string> {
   if (rounds < 1) {
     throw new Error("rounds must be >= 1");
@@ -273,9 +253,7 @@ export async function* queryCouncilStream(
 
   const modelHistories: Record<string, ChatMessage[]> = {};
   for (const model of models) {
-    modelHistories[model] = [
-      { role: "system", content: COUNCIL_SYSTEM_PROMPT },
-    ];
+    modelHistories[model] = [{ role: "system", content: COUNCIL_SYSTEM_PROMPT }];
   }
 
   const allRounds: ModelResponse[][] = [];
@@ -290,7 +268,7 @@ export async function* queryCouncilStream(
             roundNumber,
             rounds,
             allRounds,
-            modelHistories
+            modelHistories,
           )
         : await runRoundParallel(
             apiKey,
@@ -299,7 +277,7 @@ export async function* queryCouncilStream(
             roundNumber,
             rounds,
             allRounds,
-            modelHistories
+            modelHistories,
           );
 
     for (const response of roundResponses) {
@@ -310,5 +288,5 @@ export async function* queryCouncilStream(
 
   const finalResponses = allRounds[allRounds.length - 1] ?? [];
   const councilResponse: CouncilResponse = { query, responses: finalResponses };
-  yield JSON.stringify({ type: "final", data: councilResponse }) + "\n";
+  yield `${JSON.stringify({ type: "final", data: councilResponse })}\n`;
 }

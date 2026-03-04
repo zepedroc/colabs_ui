@@ -1,6 +1,6 @@
+import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { authTables } from "@convex-dev/auth/server";
 
 const benchmarkAnswerStatus = v.union(
   v.literal("correct"),
@@ -48,14 +48,16 @@ const applicationTables = {
     userId: v.id("users"),
     name: v.string(),
     status: v.union(v.literal("running"), v.literal("completed"), v.literal("failed")),
-    results: v.optional(v.object({
-      totalCases: v.number(),
-      round1Correct: v.number(),
-      finalCorrect: v.number(),
-      round1Accuracy: v.number(),
-      finalAccuracy: v.number(),
-      delta: v.number(),
-    })),
+    results: v.optional(
+      v.object({
+        totalCases: v.number(),
+        round1Correct: v.number(),
+        finalCorrect: v.number(),
+        round1Accuracy: v.number(),
+        finalAccuracy: v.number(),
+        delta: v.number(),
+      }),
+    ),
     activeCase: v.optional(v.string()),
     filePath: v.optional(v.string()),
     errorMessage: v.optional(v.string()),
@@ -84,19 +86,10 @@ const applicationTables = {
     userId: v.id("users"),
     title: v.string(),
     description: v.optional(v.string()),
-    status: v.union(
-      v.literal("todo"),
-      v.literal("in_progress"),
-      v.literal("done"),
-    ),
+    status: v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done")),
     order: v.number(),
     priority: v.optional(
-      v.union(
-        v.literal("low"),
-        v.literal("medium"),
-        v.literal("high"),
-        v.literal("urgent"),
-      ),
+      v.union(v.literal("low"), v.literal("medium"), v.literal("high"), v.literal("urgent")),
     ),
     tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   }).index("by_user_and_status", ["userId", "status"]),

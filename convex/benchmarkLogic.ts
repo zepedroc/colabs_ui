@@ -2,7 +2,7 @@
  * Benchmark logic - run council per case, parse JSON selections, stream NDJSON.
  */
 
-import { queryCouncilStream, type CouncilMode, type ModelResponse } from "./council";
+import { type CouncilMode, type ModelResponse, queryCouncilStream } from "./council";
 
 export interface BenchmarkCase {
   question: string;
@@ -46,7 +46,7 @@ const BENCHMARK_QUERY_TEMPLATE =
   "You are answering a multiple-choice question. Choose exactly one option.\n\n" +
   "Question:\n{question}\n\n" +
   "Options:\n{options_text}\n\n" +
-  'You MUST respond with ONLY a valid JSON object (no markdown, no extra text) with this exact structure:\n' +
+  "You MUST respond with ONLY a valid JSON object (no markdown, no extra text) with this exact structure:\n" +
   '{"selected_option": "A", "reason": "your brief reasoning"}\n\n' +
   "The selected_option must be one of: {option_labels}";
 
@@ -65,9 +65,7 @@ function normalizeOption(s: string): string {
   return (s ?? "").trim().toUpperCase();
 }
 
-function parseChoiceOutput(
-  content: string | null
-): [string | null, string | null] {
+function parseChoiceOutput(content: string | null): [string | null, string | null] {
   if (!content || !content.trim()) {
     return [null, "Empty response"];
   }
@@ -101,7 +99,7 @@ function parseChoiceOutput(
 function benchmarkAnswerStatus(
   selectedOption: string | null,
   parseError: string | null,
-  expectedOption: string
+  expectedOption: string,
 ): BenchmarkAnswerStatus {
   if (
     parseError != null &&
@@ -124,7 +122,7 @@ export async function* runBenchmarkStream(
   models: string[],
   cases: BenchmarkCase[],
   rounds: number,
-  mode: CouncilMode
+  mode: CouncilMode,
 ): AsyncGenerator<string> {
   let totalRound1Correct = 0;
   let totalFinalCorrect = 0;
@@ -134,15 +132,13 @@ export async function* runBenchmarkStream(
   for (let caseIdx = 0; caseIdx < cases.length; caseIdx++) {
     const case_ = cases[caseIdx];
     const questionPreview =
-      case_.question.length > 100
-        ? case_.question.slice(0, 100) + "..."
-        : case_.question;
+      case_.question.length > 100 ? `${case_.question.slice(0, 100)}...` : case_.question;
 
-    yield JSON.stringify({
+    yield `${JSON.stringify({
       type: "benchmark_case_started",
       case_index: caseIdx,
       question: questionPreview,
-    }) + "\n";
+    })}\n`;
 
     const query = buildBenchmarkQuery(case_);
     const expected = expectedNormalized(case_.expected_option);
@@ -219,10 +215,10 @@ export async function* runBenchmarkStream(
       expected_option: case_.expected_option,
       model_results: modelResults,
     };
-    yield JSON.stringify({
+    yield `${JSON.stringify({
       type: "benchmark_case_result",
       data: caseResult,
-    }) + "\n";
+    })}\n`;
   }
 
   const round1Acc = totalAnswers > 0 ? totalRound1Correct / totalAnswers : 0;
@@ -235,8 +231,8 @@ export async function* runBenchmarkStream(
     final_accuracy: finalAcc,
     delta: finalAcc - round1Acc,
   };
-  yield JSON.stringify({
+  yield `${JSON.stringify({
     type: "benchmark_summary",
     data: summary,
-  }) + "\n";
+  })}\n`;
 }

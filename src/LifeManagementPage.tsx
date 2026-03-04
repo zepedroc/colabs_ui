@@ -1,16 +1,14 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KanbanBoard } from "@/components/lifeManagement/KanbanBoard";
-import { PainsList } from "@/components/lifeManagement/PainsList";
 import { LearnList } from "@/components/lifeManagement/LearnList";
+import { PainsList } from "@/components/lifeManagement/PainsList";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export function LifeManagementPage() {
   return (
     <div className="h-full flex flex-col">
       <div className="bg-white border-b px-6 py-4">
         <h1 className="text-2xl font-bold text-primary">Life Management</h1>
-        <p className="text-gray-600">
-          Manage tasks, track pains, and list things to learn
-        </p>
+        <p className="text-gray-600">Manage tasks, track pains, and list things to learn</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
