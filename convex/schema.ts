@@ -31,6 +31,10 @@ const applicationTables = {
     source: v.optional(
       v.union(
         v.literal("user"),
+        v.literal("council_round"),
+        v.literal("council_final"),
+        v.literal("council_error"),
+        // Legacy values (kept for backward compatibility with existing documents)
         v.literal("fastapi_round"),
         v.literal("fastapi_final"),
         v.literal("fastapi_error"),

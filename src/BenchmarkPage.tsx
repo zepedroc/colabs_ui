@@ -58,7 +58,7 @@ export function BenchmarkPage() {
     <div className="h-full flex flex-col">
       <div className="bg-white border-b px-6 py-4">
         <h1 className="text-2xl font-bold text-primary">AI Benchmarks</h1>
-        <p className="text-gray-600">Convex orchestrates FastAPI benchmark runs</p>
+        <p className="text-gray-600">Convex orchestrates benchmark runs via OpenRouter</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
@@ -68,7 +68,7 @@ export function BenchmarkPage() {
             <CardHeader>
               <CardTitle>Start New Benchmark</CardTitle>
               <CardDescription>
-                Stores runs in Convex and streams detailed results from FastAPI.
+                Stores runs in Convex and streams detailed results from the benchmark.
               </CardDescription>
             </CardHeader>
             <CardContent>

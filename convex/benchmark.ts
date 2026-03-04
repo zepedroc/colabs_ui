@@ -3,7 +3,10 @@ import { internal } from "./_generated/api";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { Id } from "./_generated/dataModel";
-import { getFastApiBaseUrl } from "./fastapiConfig";
+import { getOpenRouterApiKey } from "./openrouterConfig";
+import { getCouncilModels } from "./aiConfig";
+import { runBenchmarkStream } from "./benchmarkLogic";
+import benchmarkQuestions from "./benchmarks/questions.json";
 
 const benchmarkAnswerStatus = v.union(
   v.literal("correct"),
@@ -25,10 +28,6 @@ const benchmarkModelResult = v.object({
   finalParseError: v.optional(v.union(v.string(), v.null())),
 });
 
-function buildBenchmarkRequestUrl() {
-  return `${getFastApiBaseUrl()}/benchmark/run`;
-}
-
 export const startBenchmark = mutation({
   args: {
     name: v.string(),
@@ -48,7 +47,7 @@ export const startBenchmark = mutation({
       filePath: args.filePath,
     });
 
-    await ctx.scheduler.runAfter(0, internal.benchmark.runBenchmarkAgainstFastApi, {
+    await ctx.scheduler.runAfter(0, internal.benchmark.runBenchmark, {
       benchmarkId,
       userId,
       filePath: args.filePath,
@@ -182,7 +181,7 @@ export const failBenchmarkRun = internalMutation({
   },
 });
 
-export const runBenchmarkAgainstFastApi = internalAction({
+export const runBenchmark = internalAction({
   args: {
     benchmarkId: v.id("benchmarkRuns"),
     userId: v.id("users"),
@@ -190,132 +189,107 @@ export const runBenchmarkAgainstFastApi = internalAction({
   },
   handler: async (ctx, args) => {
     try {
-      const response = await fetch(buildBenchmarkRequestUrl(), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/x-ndjson",
-        },
-        body: JSON.stringify(args.filePath ? { file_path: args.filePath } : {}),
-      });
+      const apiKey = getOpenRouterApiKey();
+      const models = getCouncilModels();
 
-      if (!response.ok) {
-        throw new Error(`FastAPI request failed: ${response.status} ${response.statusText}`);
-      }
+      const cases = benchmarkQuestions as Array<{
+        question: string;
+        options: Record<string, string>;
+        expected_option: string;
+      }>;
 
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("FastAPI response stream is not readable.");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
       let hasSummary = false;
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (value) {
-          buffer += decoder.decode(value, { stream: !done });
-        }
+      for await (const line of runBenchmarkStream(
+        apiKey,
+        models,
+        cases,
+        2,
+        "parallel"
+      )) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
 
-        const lines = buffer.split(/\r?\n/);
-        if (done) {
-          buffer = "";
-        } else {
-          buffer = lines.pop() || "";
-        }
-
-        for (const rawLine of lines) {
-          const line = rawLine.trim();
-          if (!line) {
-            continue;
-          }
-
-          let event: {
-            type?: string;
+        let event: {
+          type?: string;
+          case_index?: number;
+          question?: string;
+          data?: {
             case_index?: number;
             question?: string;
-            data?: {
-              case_index?: number;
-              question?: string;
-              expected_option?: string;
-              model_results?: Array<{
-                model: string;
-                round1_raw_response?: string | null;
-                final_raw_response?: string | null;
-                round1_option?: string | null;
-                final_option?: string | null;
-                round1_correct: boolean;
-                final_correct: boolean;
-                round1_status?: "correct" | "incorrect" | "parsing_error";
-                final_status?: "correct" | "incorrect" | "parsing_error";
-                round1_parse_error?: string | null;
-                final_parse_error?: string | null;
-              }>;
-              total_cases?: number;
-              round1_correct?: number;
-              final_correct?: number;
-              round1_accuracy?: number;
-              final_accuracy?: number;
-              delta?: number;
-            };
+            expected_option?: string;
+            model_results?: Array<{
+              model: string;
+              round1_raw_response?: string | null;
+              final_raw_response?: string | null;
+              round1_option?: string | null;
+              final_option?: string | null;
+              round1_correct: boolean;
+              final_correct: boolean;
+              round1_status?: "correct" | "incorrect" | "parsing_error";
+              final_status?: "correct" | "incorrect" | "parsing_error";
+              round1_parse_error?: string | null;
+              final_parse_error?: string | null;
+            }>;
+            total_cases?: number;
+            round1_correct?: number;
+            final_correct?: number;
+            round1_accuracy?: number;
+            final_accuracy?: number;
+            delta?: number;
           };
-          try {
-            event = JSON.parse(line);
-          } catch {
-            continue;
-          }
-
-          if (event.type === "benchmark_case_started") {
-            await ctx.runMutation(internal.benchmark.setBenchmarkActiveCase, {
-              benchmarkId: args.benchmarkId,
-              activeCase: `Case ${(event.case_index ?? 0) + 1}: ${event.question ?? ""}`.trim(),
-            });
-            continue;
-          }
-
-          if (event.type === "benchmark_case_result" && event.data) {
-            await ctx.runMutation(internal.benchmark.upsertBenchmarkCaseResult, {
-              benchmarkId: args.benchmarkId,
-              userId: args.userId as Id<"users">,
-              caseIndex: event.data.case_index ?? 0,
-              question: event.data.question ?? "",
-              expectedOption: event.data.expected_option ?? "",
-              modelResults: (event.data.model_results ?? []).map((result) => ({
-                model: result.model,
-                round1RawResponse: result.round1_raw_response ?? null,
-                finalRawResponse: result.final_raw_response ?? null,
-                round1Option: result.round1_option ?? null,
-                finalOption: result.final_option ?? null,
-                round1Correct: Boolean(result.round1_correct),
-                finalCorrect: Boolean(result.final_correct),
-                round1Status: result.round1_status,
-                finalStatus: result.final_status,
-                round1ParseError: result.round1_parse_error ?? null,
-                finalParseError: result.final_parse_error ?? null,
-              })),
-            });
-            continue;
-          }
-
-          if (event.type === "benchmark_summary" && event.data) {
-            hasSummary = true;
-            await ctx.runMutation(internal.benchmark.completeBenchmarkRun, {
-              benchmarkId: args.benchmarkId,
-              summary: {
-                totalCases: event.data.total_cases ?? 0,
-                round1Correct: event.data.round1_correct ?? 0,
-                finalCorrect: event.data.final_correct ?? 0,
-                round1Accuracy: event.data.round1_accuracy ?? 0,
-                finalAccuracy: event.data.final_accuracy ?? 0,
-                delta: event.data.delta ?? 0,
-              },
-            });
-          }
+        };
+        try {
+          event = JSON.parse(trimmed);
+        } catch {
+          continue;
         }
 
-        if (done) {
-          break;
+        if (event.type === "benchmark_case_started") {
+          await ctx.runMutation(internal.benchmark.setBenchmarkActiveCase, {
+            benchmarkId: args.benchmarkId,
+            activeCase: `Case ${(event.case_index ?? 0) + 1}: ${event.question ?? ""}`.trim(),
+          });
+          continue;
+        }
+
+        if (event.type === "benchmark_case_result" && event.data) {
+          await ctx.runMutation(internal.benchmark.upsertBenchmarkCaseResult, {
+            benchmarkId: args.benchmarkId,
+            userId: args.userId as Id<"users">,
+            caseIndex: event.data.case_index ?? 0,
+            question: event.data.question ?? "",
+            expectedOption: event.data.expected_option ?? "",
+            modelResults: (event.data.model_results ?? []).map((result) => ({
+              model: result.model,
+              round1RawResponse: result.round1_raw_response ?? null,
+              finalRawResponse: result.final_raw_response ?? null,
+              round1Option: result.round1_option ?? null,
+              finalOption: result.final_option ?? null,
+              round1Correct: Boolean(result.round1_correct),
+              finalCorrect: Boolean(result.final_correct),
+              round1Status: result.round1_status,
+              finalStatus: result.final_status,
+              round1ParseError: result.round1_parse_error ?? null,
+              finalParseError: result.final_parse_error ?? null,
+            })),
+          });
+          continue;
+        }
+
+        if (event.type === "benchmark_summary" && event.data) {
+          hasSummary = true;
+          await ctx.runMutation(internal.benchmark.completeBenchmarkRun, {
+            benchmarkId: args.benchmarkId,
+            summary: {
+              totalCases: event.data.total_cases ?? 0,
+              round1Correct: event.data.round1_correct ?? 0,
+              finalCorrect: event.data.final_correct ?? 0,
+              round1Accuracy: event.data.round1_accuracy ?? 0,
+              finalAccuracy: event.data.final_accuracy ?? 0,
+              delta: event.data.delta ?? 0,
+            },
+          });
         }
       }
 
@@ -326,7 +300,7 @@ export const runBenchmarkAgainstFastApi = internalAction({
         });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown FastAPI error";
+      const message = error instanceof Error ? error.message : "Unknown error";
       await ctx.runMutation(internal.benchmark.failBenchmarkRun, {
         benchmarkId: args.benchmarkId,
         message,
