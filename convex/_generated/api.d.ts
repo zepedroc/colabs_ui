@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as benchmark from "../benchmark.js";
 import type * as chat from "../chat.js";
+import type * as fastapiConfig from "../fastapiConfig.js";
 import type * as http from "../http.js";
 import type * as router from "../router.js";
 
@@ -24,6 +25,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   benchmark: typeof benchmark;
   chat: typeof chat;
+  fastapiConfig: typeof fastapiConfig;
   http: typeof http;
   router: typeof router;
 }>;

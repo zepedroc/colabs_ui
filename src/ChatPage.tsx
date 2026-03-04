@@ -4,12 +4,23 @@ import { api } from "../convex/_generated/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+type CouncilMode = "parallel" | "conversation";
 
 export function ChatPage() {
   const [message, setMessage] = useState("");
   const [sessionId] = useState(() => `session-${Date.now()}-${Math.random()}`);
+  const [rounds, setRounds] = useState(3);
+  const [mode, setMode] = useState<CouncilMode>("parallel");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
   const messages = useQuery(api.chat.getMessages, { sessionId }) || [];
   const sendMessage = useMutation(api.chat.sendMessage);
 
@@ -23,19 +34,25 @@ export function ChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!message.trim()) return;
+    if (!message.trim() || isSubmitting) return;
 
-    const messageToSend = message;
+    const query = message.trim();
     setMessage("");
+    setRequestError(null);
+    setIsSubmitting(true);
 
     try {
       await sendMessage({
-        content: messageToSend,
+        content: query,
         sessionId,
+        rounds,
+        mode,
       });
     } catch (error) {
-      console.error("Failed to send message:", error);
-      setMessage(messageToSend); // Restore message on error
+      setRequestError(error instanceof Error ? error.message : "Failed to send message.");
+      setMessage(query);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -43,7 +60,7 @@ export function ChatPage() {
     <div className="h-full flex flex-col">
       <div className="bg-white border-b px-6 py-4">
         <h1 className="text-2xl font-bold text-primary">AI Council Chat</h1>
-        <p className="text-gray-600">Collaborate with multiple AI agents</p>
+        <p className="text-gray-600">Messages and FastAPI results are managed through Convex</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
@@ -53,7 +70,7 @@ export function ChatPage() {
               <CardHeader className="text-center">
                 <CardTitle className="text-lg">Start a conversation with the AI council</CardTitle>
                 <CardDescription>
-                  Ask questions and get collaborative insights from multiple AI agents.
+                  Convex stores messages and orchestrates FastAPI calls on your behalf.
                 </CardDescription>
               </CardHeader>
               <CardContent className="text-center text-4xl pb-6">🤖</CardContent>
@@ -65,13 +82,22 @@ export function ChatPage() {
                 className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <Card
-                  className={`max-w-xs lg:max-w-md ${
-                    msg.role === "user" ? "bg-primary border-primary text-white" : ""
-                  }`}
+                  className={
+                    msg.role === "user"
+                      ? "max-w-xs lg:max-w-md bg-primary border-primary text-white"
+                      : msg.source === "fastapi_round"
+                        ? "w-full border-blue-200"
+                        : "max-w-xs lg:max-w-md"
+                  }
                 >
                   <CardContent className="p-4">
                     <div className="text-sm font-medium mb-1">
-                      {msg.role === "user" ? "You" : "AI Council"}
+                      {msg.role === "user" ? "You" : msg.model ? msg.model : "AI Council"}
+                      {msg.round ? (
+                        <span className="ml-2 text-xs text-gray-500 align-middle">
+                          Round {msg.round}
+                        </span>
+                      ) : null}
                     </div>
                     <div className="whitespace-pre-wrap">{msg.content}</div>
                     <div
@@ -86,22 +112,50 @@ export function ChatPage() {
               </div>
             ))
           )}
+          {requestError && (
+            <Card className="border-red-300">
+              <CardContent className="p-4 text-red-700">{requestError}</CardContent>
+            </Card>
+          )}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
       <div className="bg-white border-t p-6">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-          <div className="flex gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+            <Select
+              value={mode}
+              onValueChange={(v) => setMode(v as CouncilMode)}
+              disabled={isSubmitting}
+            >
+              <SelectTrigger className="h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="parallel">parallel</SelectItem>
+                <SelectItem value="conversation">conversation</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input
+              type="number"
+              min={1}
+              max={5}
+              value={rounds}
+              onChange={(e) => setRounds(Number(e.target.value) || 1)}
+              disabled={isSubmitting}
+              className="h-11"
+            />
             <Input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Ask the AI council anything..."
-              className="flex-1 h-11"
+              className="md:col-span-3 h-11"
+              disabled={isSubmitting}
             />
-            <Button type="submit" disabled={!message.trim()} className="h-11">
-              Send
+            <Button type="submit" disabled={!message.trim() || isSubmitting} className="h-11">
+              {isSubmitting ? "Submitting..." : "Send"}
             </Button>
           </div>
         </form>
