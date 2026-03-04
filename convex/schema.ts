@@ -69,6 +69,28 @@ const applicationTables = {
   })
     .index("by_run", ["benchmarkRunId"])
     .index("by_user_and_run", ["userId", "benchmarkRunId"]),
+
+  lifeManagementTasks: defineTable({
+    userId: v.id("users"),
+    title: v.string(),
+    status: v.union(
+      v.literal("todo"),
+      v.literal("in_progress"),
+      v.literal("done"),
+    ),
+    order: v.number(),
+  }).index("by_user_and_status", ["userId", "status"]),
+
+  lifeManagementPains: defineTable({
+    userId: v.id("users"),
+    content: v.string(),
+  }).index("by_user", ["userId"]),
+
+  lifeManagementLearnings: defineTable({
+    userId: v.id("users"),
+    content: v.string(),
+    order: v.number(),
+  }).index("by_user", ["userId"]),
 };
 
 export default defineSchema({

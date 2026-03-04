@@ -8,20 +8,25 @@
     "dev:frontend": "vite --open",
     "dev:backend": "convex dev",
     "build": "vite build",
-    "lint": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once && vite build"
+    "lint": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once && vite build",
+    "tsc": "tsc --noEmit"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.80",
+    "@hello-pangea/dnd": "^18.0.1",
+    "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-select": "^2.2.6",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.31.2",
     "lucide-react": "^0.576.0",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "react-router-dom": "^7.13.1",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.1.0"
   },

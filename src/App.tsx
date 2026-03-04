@@ -3,9 +3,10 @@ import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
 import { Toaster } from "sonner";
-import { useState } from "react";
+import { Routes, Route, NavLink } from "react-router-dom";
 import { ChatPage } from "./ChatPage";
 import { BenchmarkPage } from "./BenchmarkPage";
+import { LifeManagementPage } from "./LifeManagementPage";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,53 +16,57 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-type Page = "home" | "chat" | "benchmark";
-
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<Page>("home");
-
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm h-16 flex justify-between items-center border-b shadow-sm px-4">
         <div className="flex items-center gap-6">
-          <Button
-            variant="link"
-            size="sm"
-            onClick={() => setCurrentPage("home")}
-            className="text-xl font-semibold text-primary p-0 h-auto"
-          >
-            Colabs AI
-          </Button>
+          <NavLink to="/">
+            <Button
+              variant="link"
+              size="sm"
+              className="text-xl font-semibold text-primary p-0 h-auto"
+            >
+              Colabs AI
+            </Button>
+          </NavLink>
           <Authenticated>
             <nav className="flex gap-2">
-              <Button
-                onClick={() => setCurrentPage("chat")}
-                variant={currentPage === "chat" ? "default" : "ghost"}
-                size="sm"
-              >
-                Chat
-              </Button>
-              <Button
-                onClick={() => setCurrentPage("benchmark")}
-                variant={currentPage === "benchmark" ? "default" : "ghost"}
-                size="sm"
-              >
-                Benchmark
-              </Button>
+              <NavLink to="/chat">
+                {({ isActive }) => (
+                  <Button variant={isActive ? "default" : "ghost"} size="sm">
+                    Chat
+                  </Button>
+                )}
+              </NavLink>
+              <NavLink to="/benchmark">
+                {({ isActive }) => (
+                  <Button variant={isActive ? "default" : "ghost"} size="sm">
+                    Benchmark
+                  </Button>
+                )}
+              </NavLink>
+              <NavLink to="/life-management">
+                {({ isActive }) => (
+                  <Button variant={isActive ? "default" : "ghost"} size="sm">
+                    Life Management
+                  </Button>
+                )}
+              </NavLink>
             </nav>
           </Authenticated>
         </div>
         <SignOutButton />
       </header>
       <main className="flex-1">
-        <Content currentPage={currentPage} />
+        <Content />
       </main>
       <Toaster />
     </div>
   );
 }
 
-function Content({ currentPage }: { currentPage: Page }) {
+function Content() {
   const loggedInUser = useQuery(api.auth.loggedInUser);
 
   if (loggedInUser === undefined) {
@@ -75,9 +80,12 @@ function Content({ currentPage }: { currentPage: Page }) {
   return (
     <>
       <Authenticated>
-        {currentPage === "home" && <HomePage />}
-        {currentPage === "chat" && <ChatPage />}
-        {currentPage === "benchmark" && <BenchmarkPage />}
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/benchmark" element={<BenchmarkPage />} />
+          <Route path="/life-management" element={<LifeManagementPage />} />
+        </Routes>
       </Authenticated>
       <Unauthenticated>
         <UnauthenticatedContent />

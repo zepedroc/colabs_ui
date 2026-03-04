@@ -13,6 +13,7 @@ import type * as benchmark from "../benchmark.js";
 import type * as chat from "../chat.js";
 import type * as fastapiConfig from "../fastapiConfig.js";
 import type * as http from "../http.js";
+import type * as lifeManagement from "../lifeManagement.js";
 import type * as router from "../router.js";
 
 import type {
@@ -27,6 +28,7 @@ declare const fullApi: ApiFromModules<{
   chat: typeof chat;
   fastapiConfig: typeof fastapiConfig;
   http: typeof http;
+  lifeManagement: typeof lifeManagement;
   router: typeof router;
 }>;
 
