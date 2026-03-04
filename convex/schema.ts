@@ -74,15 +74,31 @@ const applicationTables = {
     .index("by_run", ["benchmarkRunId"])
     .index("by_user_and_run", ["userId", "benchmarkRunId"]),
 
+  lifeManagementTags: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    color: v.string(),
+  }).index("by_user", ["userId"]),
+
   lifeManagementTasks: defineTable({
     userId: v.id("users"),
     title: v.string(),
+    description: v.optional(v.string()),
     status: v.union(
       v.literal("todo"),
       v.literal("in_progress"),
       v.literal("done"),
     ),
     order: v.number(),
+    priority: v.optional(
+      v.union(
+        v.literal("low"),
+        v.literal("medium"),
+        v.literal("high"),
+        v.literal("urgent"),
+      ),
+    ),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   }).index("by_user_and_status", ["userId", "status"]),
 
   lifeManagementPains: defineTable({

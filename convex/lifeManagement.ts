@@ -8,6 +8,67 @@ const taskStatus = v.union(
   v.literal("done"),
 );
 
+const taskPriority = v.union(
+  v.literal("low"),
+  v.literal("medium"),
+  v.literal("high"),
+  v.literal("urgent"),
+);
+
+const PRIORITY_ORDER = { low: 0, medium: 1, high: 2, urgent: 3 } as const;
+
+// --- Tags ---
+
+export const listTags = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+    return await ctx.db
+      .query("lifeManagementTags")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+  },
+});
+
+export const createTag = mutation({
+  args: {
+    name: v.string(),
+    color: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+    return await ctx.db.insert("lifeManagementTags", {
+      userId,
+      name: args.name,
+      color: args.color,
+    });
+  },
+});
+
+export const deleteTag = mutation({
+  args: {
+    tagId: v.id("lifeManagementTags"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+    const tag = await ctx.db.get(args.tagId);
+    if (!tag || tag.userId !== userId) {
+      throw new Error("Tag not found");
+    }
+    await ctx.db.delete(args.tagId);
+    return null;
+  },
+});
+
 // --- Tasks (Kanban) ---
 
 export const listTasks = query({
@@ -35,6 +96,11 @@ export const listTasks = query({
       if (a.status !== b.status) {
         return statuses.indexOf(a.status) - statuses.indexOf(b.status);
       }
+      const aPriority = a.priority ? PRIORITY_ORDER[a.priority] : -1;
+      const bPriority = b.priority ? PRIORITY_ORDER[b.priority] : -1;
+      if (aPriority !== bPriority) {
+        return bPriority - aPriority; // higher priority first
+      }
       return a.order - b.order;
     });
   },
@@ -44,6 +110,9 @@ export const createTask = mutation({
   args: {
     title: v.string(),
     status: taskStatus,
+    description: v.optional(v.string()),
+    priority: v.optional(taskPriority),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -67,6 +136,9 @@ export const createTask = mutation({
       title: args.title,
       status: args.status,
       order,
+      description: args.description,
+      priority: args.priority ?? "low",
+      tagIds: args.tagIds,
     });
   },
 });
@@ -74,7 +146,10 @@ export const createTask = mutation({
 export const updateTask = mutation({
   args: {
     taskId: v.id("lifeManagementTasks"),
-    title: v.string(),
+    title: v.optional(v.string()),
+    description: v.optional(v.union(v.string(), v.null())),
+    priority: v.optional(v.union(taskPriority, v.null())),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -87,7 +162,15 @@ export const updateTask = mutation({
       throw new Error("Task not found");
     }
 
-    await ctx.db.patch(args.taskId, { title: args.title });
+    const updates: Record<string, unknown> = {};
+    if (args.title !== undefined) updates.title = args.title;
+    if (args.description !== undefined) updates.description = args.description;
+    if (args.priority !== undefined) updates.priority = args.priority;
+    if (args.tagIds !== undefined) updates.tagIds = args.tagIds;
+
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(args.taskId, updates);
+    }
     return null;
   },
 });
