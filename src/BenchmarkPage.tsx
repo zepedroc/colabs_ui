@@ -50,11 +50,6 @@ export function BenchmarkPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="bg-white/80 border-b border-slate-200 px-6 py-5">
-        <h1 className="text-2xl font-bold text-slate-900">AI Benchmarks</h1>
-        <p className="text-slate-600 mt-0.5">Convex orchestrates benchmark runs via OpenRouter</p>
-      </div>
-
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-6xl mx-auto">
           {/* Start New Benchmark */}
@@ -243,7 +238,10 @@ export function BenchmarkPage() {
                     <CardContent>
                       <div className="space-y-3">
                         {benchmark.modelResults.map((modelResult) => (
-                          <div key={modelResult.model} className="border border-slate-200 rounded-lg p-3">
+                          <div
+                            key={modelResult.model}
+                            className="border border-slate-200 rounded-lg p-3"
+                          >
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium">{modelResult.model}</span>
                               <div className="flex gap-2">
