@@ -47,7 +47,7 @@ export function PainsList() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 shrink-0 text-gray-500 hover:text-red-600"
+                  className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600"
                   onClick={() => handleRemove(pain._id)}
                 >
                   <Trash2 className="h-4 w-4" />
@@ -57,7 +57,7 @@ export function PainsList() {
           </li>
         ))}
       </ul>
-      {pains.length === 0 && <p className="text-sm text-gray-500 mt-4">No pains recorded yet.</p>}
+      {pains.length === 0 && <p className="text-sm text-slate-500 mt-4">No pains recorded yet.</p>}
     </div>
   );
 }

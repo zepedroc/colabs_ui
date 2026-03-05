@@ -18,34 +18,34 @@ type CouncilMode = "parallel" | "conversation";
 
 const AGENT_COLORS = [
   {
-    border: "border-blue-500",
-    bg: "bg-blue-50",
-    accent: "text-blue-700",
-    label: "bg-blue-100 text-blue-800",
+    border: "border-l-sky-400",
+    bg: "bg-gradient-to-br from-sky-50/90 to-white",
+    accent: "text-sky-700",
+    label: "bg-sky-100/80 text-sky-600 border border-sky-200/50",
   },
   {
-    border: "border-emerald-500",
-    bg: "bg-emerald-50",
-    accent: "text-emerald-700",
-    label: "bg-emerald-100 text-emerald-800",
+    border: "border-l-teal-400",
+    bg: "bg-gradient-to-br from-teal-50/90 to-white",
+    accent: "text-teal-700",
+    label: "bg-teal-100/80 text-teal-600 border border-teal-200/50",
   },
   {
-    border: "border-amber-500",
-    bg: "bg-amber-50",
+    border: "border-l-amber-400",
+    bg: "bg-gradient-to-br from-amber-50/90 to-white",
     accent: "text-amber-700",
-    label: "bg-amber-100 text-amber-800",
+    label: "bg-amber-100/80 text-amber-600 border border-amber-200/50",
   },
   {
-    border: "border-violet-500",
-    bg: "bg-violet-50",
-    accent: "text-violet-700",
-    label: "bg-violet-100 text-violet-800",
+    border: "border-l-indigo-400",
+    bg: "bg-gradient-to-br from-indigo-50/90 to-white",
+    accent: "text-indigo-700",
+    label: "bg-indigo-100/80 text-indigo-600 border border-indigo-200/50",
   },
   {
-    border: "border-rose-500",
-    bg: "bg-rose-50",
-    accent: "text-rose-700",
-    label: "bg-rose-100 text-rose-800",
+    border: "border-l-pink-400",
+    bg: "bg-gradient-to-br from-pink-50/90 to-white",
+    accent: "text-pink-700",
+    label: "bg-pink-100/80 text-pink-600 border border-pink-200/50",
   },
 ] as const;
 
@@ -191,11 +191,6 @@ export function ChatPage() {
 
   return (
     <div className="h-full flex flex-col min-h-0">
-      <div className="bg-white border-b px-6 py-4 shrink-0">
-        <h1 className="text-2xl font-bold text-primary">AI Council Chat</h1>
-        <p className="text-gray-600">Messages and AI results are managed through Convex</p>
-      </div>
-
       <div className="flex-1 overflow-y-auto p-6 pb-40 min-h-0">
         <div className="max-w-6xl mx-auto space-y-6">
           {messages.length === 0 ? (
@@ -218,7 +213,7 @@ export function ChatPage() {
                       <CardContent className="p-4">
                         <div className="flex justify-between items-start gap-2 mb-1">
                           <div className="text-sm font-medium">You</div>
-                          <div className="text-xs text-blue-100 shrink-0">
+                          <div className="text-xs text-teal-100 shrink-0">
                             {new Date(msg._creationTime).toLocaleTimeString()}
                           </div>
                         </div>
@@ -238,10 +233,21 @@ export function ChatPage() {
                   group.type === "round"
                     ? `round-${group.round}`
                     : `final-${group.messages.map((m) => m._id).join("-")}`;
+                const isFinal = group.type === "final";
                 return (
-                  <div key={groupKey}>
-                    <h3 className="text-sm font-semibold text-gray-600 mb-2">{title}</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div key={groupKey} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                          isFinal
+                            ? "bg-primary/10 text-primary border border-primary/20"
+                            : "bg-slate-100 text-slate-600 border border-slate-200/80"
+                        }`}
+                      >
+                        {title}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {sortedMessages.map((msg, idx) => {
                         const modelName = msg.model ?? "Unknown";
                         const colors = getAgentColorByIndex(idx);
@@ -249,21 +255,21 @@ export function ChatPage() {
                         return (
                           <Card
                             key={msg._id}
-                            className={`${colors.border} border-l-4 ${colors.bg} min-w-0`}
+                            className={`${colors.border} border-l-4 ${colors.bg} min-w-0 shadow-sm hover:shadow-md transition-shadow overflow-hidden`}
                           >
-                            <CardHeader className="py-2 px-4 flex flex-row justify-between items-start gap-2">
-                              <div
-                                className={`text-xs font-medium px-2 py-0.5 rounded-full w-fit ${colors.label}`}
+                            <CardHeader className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
+                              <span
+                                className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
                               >
                                 {modelName.split("/").pop() ?? modelName}
-                              </div>
-                              <div className="text-xs text-gray-500 shrink-0">
+                              </span>
+                              <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
                                 {new Date(msg._creationTime).toLocaleTimeString()}
-                              </div>
+                              </span>
                             </CardHeader>
-                            <CardContent className="px-4 pb-4 pt-0">
+                            <CardContent className="px-4 py-4">
                               <div
-                                className={`text-sm prose prose-sm max-w-none ${colors.accent} prose-p:my-1 prose-ul:my-1 prose-ol:my-1`}
+                                className={`text-sm prose prose-sm prose-agent max-w-none ${colors.accent} prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0`}
                               >
                                 <ReactMarkdown>{body}</ReactMarkdown>
                               </div>
@@ -281,25 +287,27 @@ export function ChatPage() {
                   <Card
                     className={
                       msg.source === "council_error"
-                        ? "w-full border-red-200 bg-red-50"
-                        : "max-w-xs lg:max-w-md"
+                        ? "w-full max-w-2xl border-red-200 bg-red-50/50 shadow-sm"
+                        : "max-w-full lg:max-w-2xl shadow-sm border-l-4 border-l-primary/40"
                     }
                   >
                     <CardContent className="p-4">
-                      <div className="flex justify-between items-start gap-2 mb-1">
-                        <div className="text-sm font-medium">
-                          {msg.model ? msg.model : "AI Council"}
+                      <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-800">
+                            {msg.model ? msg.model.split("/").pop() : "AI Council"}
+                          </span>
                           {msg.round ? (
-                            <span className="ml-2 text-xs text-gray-500 align-middle">
+                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                               Round {msg.round}
                             </span>
                           ) : null}
                         </div>
-                        <div className="text-xs text-gray-500 shrink-0">
+                        <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
                           {new Date(msg._creationTime).toLocaleTimeString()}
-                        </div>
+                        </span>
                       </div>
-                      <div className="prose prose-sm max-w-none">
+                      <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                       </div>
                     </CardContent>
@@ -309,7 +317,7 @@ export function ChatPage() {
             })
           )}
           {requestError && (
-            <Card className="border-red-300">
+            <Card className="border-red-200 bg-red-50/50">
               <CardContent className="p-4 text-red-700">{requestError}</CardContent>
             </Card>
           )}
@@ -317,32 +325,36 @@ export function ChatPage() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t p-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-10">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-1 md:grid-cols-[auto_1fr_1fr_3fr_auto] gap-3 items-center">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-11"
-              onClick={startNewChat}
-              disabled={isSubmitting}
-            >
-              New chat
-            </Button>
-            <Select
-              value={mode}
-              onValueChange={(v) => setMode(v as CouncilMode)}
-              disabled={isSubmitting}
-            >
-              <SelectTrigger className="h-11">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="parallel">parallel</SelectItem>
-                <SelectItem value="conversation">conversation</SelectItem>
-              </SelectContent>
-            </Select>
+      <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-10 pointer-events-none">
+        <form
+          onSubmit={handleSubmit}
+          className="pointer-events-auto w-full max-w-4xl bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08),0_0_1px_rgba(0,0,0,0.1)] border border-slate-200/80 p-4 flex flex-wrap items-center gap-3"
+        >
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-11 shrink-0"
+            onClick={startNewChat}
+            disabled={isSubmitting}
+          >
+            New chat
+          </Button>
+          <Select
+            value={mode}
+            onValueChange={(v) => setMode(v as CouncilMode)}
+            disabled={isSubmitting}
+          >
+            <SelectTrigger className="h-11 w-[140px] shrink-0">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="parallel">Parallel Mode</SelectItem>
+              <SelectItem value="conversation">Conversation Mode</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1.5 shrink-0 text-sm text-slate-600">
+            <span>Rounds</span>
             <Input
               type="number"
               min={1}
@@ -350,20 +362,20 @@ export function ChatPage() {
               value={rounds}
               onChange={(e) => setRounds(Number(e.target.value) || 1)}
               disabled={isSubmitting}
-              className="h-11"
+              className="h-11 w-14"
             />
-            <Input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask the AI council anything..."
-              className="h-11"
-              disabled={isSubmitting}
-            />
-            <Button type="submit" disabled={!message.trim() || isSubmitting} className="h-11">
-              {isSubmitting ? "Submitting..." : "Send"}
-            </Button>
           </div>
+          <Input
+            type="text"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Message the AI council..."
+            className="h-11 flex-1 min-w-[200px]"
+            disabled={isSubmitting}
+          />
+          <Button type="submit" disabled={!message.trim() || isSubmitting} className="h-11 shrink-0">
+            {isSubmitting ? "Submitting..." : "Send"}
+          </Button>
         </form>
       </div>
     </div>

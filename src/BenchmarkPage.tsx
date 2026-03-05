@@ -50,9 +50,9 @@ export function BenchmarkPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="bg-white border-b px-6 py-4">
-        <h1 className="text-2xl font-bold text-primary">AI Benchmarks</h1>
-        <p className="text-gray-600">Convex orchestrates benchmark runs via OpenRouter</p>
+      <div className="bg-white/80 border-b border-slate-200 px-6 py-5">
+        <h1 className="text-2xl font-bold text-slate-900">AI Benchmarks</h1>
+        <p className="text-slate-600 mt-0.5">Convex orchestrates benchmark runs via OpenRouter</p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
@@ -105,7 +105,11 @@ export function BenchmarkPage() {
               benchmarks.map((benchmark) => (
                 <Card
                   key={benchmark._id}
-                  className={selectedBenchmarkId === benchmark._id ? "ring-2 ring-blue-300" : ""}
+                  className={
+                    selectedBenchmarkId === benchmark._id
+                      ? "ring-2 ring-primary/30 ring-offset-2"
+                      : ""
+                  }
                 >
                   <CardHeader>
                     <div className="flex items-center justify-between gap-3">
@@ -115,7 +119,7 @@ export function BenchmarkPage() {
                           Started {new Date(benchmark.startTime).toLocaleString()}
                         </CardDescription>
                         {benchmark.activeCase && benchmark.status === "running" && (
-                          <p className="text-xs text-blue-700 mt-1">{benchmark.activeCase}</p>
+                          <p className="text-xs text-primary mt-1">{benchmark.activeCase}</p>
                         )}
                         {benchmark.errorMessage && benchmark.status === "failed" && (
                           <p className="text-xs text-red-700 mt-1">{benchmark.errorMessage}</p>
@@ -133,7 +137,7 @@ export function BenchmarkPage() {
                         >
                           {benchmark.status}
                         </Badge>
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-slate-500">
                           {formatDuration(benchmark.startTime, benchmark.endTime)}
                         </span>
                         <Button
@@ -150,26 +154,26 @@ export function BenchmarkPage() {
                   {benchmark.results && (
                     <CardContent>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="bg-gray-50 border-gray-100 shadow-none">
+                        <Card className="bg-slate-50/80 border-slate-100 shadow-none">
                           <CardContent className="p-4">
-                            <div className="text-sm text-gray-600">Round 1 Accuracy</div>
-                            <div className="text-2xl font-bold text-green-600">
+                            <div className="text-sm text-slate-600">Round 1 Accuracy</div>
+                            <div className="text-2xl font-bold text-emerald-600">
                               {formatPercentage(benchmark.results.round1Accuracy)}
                             </div>
                           </CardContent>
                         </Card>
-                        <Card className="bg-gray-50 border-gray-100 shadow-none">
+                        <Card className="bg-slate-50/80 border-slate-100 shadow-none">
                           <CardContent className="p-4">
-                            <div className="text-sm text-gray-600">Final Accuracy</div>
-                            <div className="text-2xl font-bold text-blue-600">
+                            <div className="text-sm text-slate-600">Final Accuracy</div>
+                            <div className="text-2xl font-bold text-primary">
                               {formatPercentage(benchmark.results.finalAccuracy)}
                             </div>
                           </CardContent>
                         </Card>
-                        <Card className="bg-gray-50 border-gray-100 shadow-none">
+                        <Card className="bg-slate-50/80 border-slate-100 shadow-none">
                           <CardContent className="p-4">
-                            <div className="text-sm text-gray-600">Improvement</div>
-                            <div className="text-2xl font-bold text-purple-600">
+                            <div className="text-sm text-slate-600">Improvement</div>
+                            <div className="text-2xl font-bold text-teal-600">
                               {formatPercentage(benchmark.results.delta)}
                             </div>
                           </CardContent>
@@ -180,8 +184,8 @@ export function BenchmarkPage() {
 
                   {benchmark.status === "running" && (
                     <CardContent className="pt-0">
-                      <div className="flex items-center gap-2 text-blue-600">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                      <div className="flex items-center gap-2 text-primary">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-200 border-t-primary"></div>
                         <span className="text-sm">Running benchmark...</span>
                       </div>
                     </CardContent>
@@ -205,19 +209,19 @@ export function BenchmarkPage() {
 
             {!selectedBenchmarkId ? (
               <Card>
-                <CardContent className="p-4 text-sm text-gray-600">
+                <CardContent className="p-4 text-sm text-slate-600">
                   Select a run from above to inspect model-by-model answers.
                 </CardContent>
               </Card>
             ) : benchmarkCaseResults === undefined ? (
               <Card>
-                <CardContent className="p-4 text-sm text-gray-600">
+                <CardContent className="p-4 text-sm text-slate-600">
                   Loading case details...
                 </CardContent>
               </Card>
             ) : benchmarkCaseResults.length === 0 ? (
               <Card>
-                <CardContent className="p-4 text-sm text-gray-600">
+                <CardContent className="p-4 text-sm text-slate-600">
                   No case-level details available yet for this run.
                 </CardContent>
               </Card>
@@ -239,7 +243,7 @@ export function BenchmarkPage() {
                     <CardContent>
                       <div className="space-y-3">
                         {benchmark.modelResults.map((modelResult) => (
-                          <div key={modelResult.model} className="border rounded-md p-3">
+                          <div key={modelResult.model} className="border border-slate-200 rounded-lg p-3">
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-medium">{modelResult.model}</span>
                               <div className="flex gap-2">
