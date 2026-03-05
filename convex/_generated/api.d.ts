@@ -8,10 +8,16 @@
  * @module
  */
 
+import type * as aiConfig from "../aiConfig.js";
 import type * as auth from "../auth.js";
 import type * as benchmark from "../benchmark.js";
+import type * as benchmarkLogic from "../benchmarkLogic.js";
 import type * as chat from "../chat.js";
+import type * as council from "../council.js";
 import type * as http from "../http.js";
+import type * as lifeManagement from "../lifeManagement.js";
+import type * as openrouter from "../openrouter.js";
+import type * as openrouterConfig from "../openrouterConfig.js";
 import type * as router from "../router.js";
 
 import type {
@@ -21,10 +27,16 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  aiConfig: typeof aiConfig;
   auth: typeof auth;
   benchmark: typeof benchmark;
+  benchmarkLogic: typeof benchmarkLogic;
   chat: typeof chat;
+  council: typeof council;
   http: typeof http;
+  lifeManagement: typeof lifeManagement;
+  openrouter: typeof openrouter;
+  openrouterConfig: typeof openrouterConfig;
   router: typeof router;
 }>;
 

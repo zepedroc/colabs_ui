@@ -17,6 +17,13 @@ The backend code is in the `convex` directory.
 
 Chef apps use [Convex Auth](https://auth.convex.dev/) with Anonymous auth for easy sign in. You may wish to change this before deploying your app.
 
+## AI / LLM Council
+
+The app uses [OpenRouter](https://openrouter.ai/) for the LLM council and benchmark features. Set the following in your Convex dashboard (Settings > Environment Variables):
+
+- `OPENROUTER_API_KEY` (required) - Your OpenRouter API key
+- `COUNCIL_MODELS` (optional) - JSON array or comma-separated model IDs. Defaults to: stepfun/step-3.5-flash:free, arcee-ai/trinity-large-preview:free, nvidia/nemotron-3-nano-30b-a3b:free
+
 ## Developing and deploying your app
 
 Check out the [Convex docs](https://docs.convex.dev/) for more information on how to develop with Convex.

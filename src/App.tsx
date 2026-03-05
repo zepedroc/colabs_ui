@@ -1,63 +1,66 @@
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
+import { NavLink, Route, Routes } from "react-router-dom";
+import { Toaster } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "../convex/_generated/api";
+import { BenchmarkPage } from "./BenchmarkPage";
+import { ChatPage } from "./ChatPage";
+import { LifeManagementPage } from "./LifeManagementPage";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
-import { Toaster } from "sonner";
-import { useState } from "react";
-import { ChatPage } from "./ChatPage";
-import { BenchmarkPage } from "./BenchmarkPage";
-
-type Page = "home" | "chat" | "benchmark";
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<Page>("home");
-
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
-      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm h-16 flex justify-between items-center border-b shadow-sm px-4">
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-xs h-16 flex justify-between items-center border-b shadow-xs px-4">
         <div className="flex items-center gap-6">
-          <button
-            onClick={() => setCurrentPage("home")}
-            className="text-xl font-semibold text-primary hover:text-primary-hover transition-colors"
-          >
-            Colabs AI
-          </button>
+          <NavLink to="/">
+            <Button
+              variant="link"
+              size="sm"
+              className="text-xl font-semibold text-primary p-0 h-auto"
+            >
+              Colabs AI
+            </Button>
+          </NavLink>
           <Authenticated>
-            <nav className="flex gap-4">
-              <button
-                onClick={() => setCurrentPage("chat")}
-                className={`px-3 py-1 rounded transition-colors ${
-                  currentPage === "chat"
-                    ? "bg-primary text-white"
-                    : "text-gray-600 hover:text-primary"
-                }`}
-              >
-                Chat
-              </button>
-              <button
-                onClick={() => setCurrentPage("benchmark")}
-                className={`px-3 py-1 rounded transition-colors ${
-                  currentPage === "benchmark"
-                    ? "bg-primary text-white"
-                    : "text-gray-600 hover:text-primary"
-                }`}
-              >
-                Benchmark
-              </button>
+            <nav className="flex gap-2">
+              <NavLink to="/chat">
+                {({ isActive }) => (
+                  <Button variant={isActive ? "default" : "ghost"} size="sm">
+                    Chat
+                  </Button>
+                )}
+              </NavLink>
+              <NavLink to="/benchmark">
+                {({ isActive }) => (
+                  <Button variant={isActive ? "default" : "ghost"} size="sm">
+                    Benchmark
+                  </Button>
+                )}
+              </NavLink>
+              <NavLink to="/life-management">
+                {({ isActive }) => (
+                  <Button variant={isActive ? "default" : "ghost"} size="sm">
+                    Life Management
+                  </Button>
+                )}
+              </NavLink>
             </nav>
           </Authenticated>
         </div>
         <SignOutButton />
       </header>
-      <main className="flex-1">
-        <Content currentPage={currentPage} />
+      <main className="flex-1 min-h-0 flex flex-col">
+        <Content />
       </main>
       <Toaster />
     </div>
   );
 }
 
-function Content({ currentPage }: { currentPage: Page }) {
+function Content() {
   const loggedInUser = useQuery(api.auth.loggedInUser);
 
   if (loggedInUser === undefined) {
@@ -71,9 +74,12 @@ function Content({ currentPage }: { currentPage: Page }) {
   return (
     <>
       <Authenticated>
-        {currentPage === "home" && <HomePage />}
-        {currentPage === "chat" && <ChatPage />}
-        {currentPage === "benchmark" && <BenchmarkPage />}
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/benchmark" element={<BenchmarkPage />} />
+          <Route path="/life-management" element={<LifeManagementPage />} />
+        </Routes>
       </Authenticated>
       <Unauthenticated>
         <UnauthenticatedContent />
@@ -86,18 +92,18 @@ function UnauthenticatedContent() {
   return (
     <div className="flex items-center justify-center p-8 h-full">
       <div className="w-full max-w-md mx-auto">
-        <div className="flex flex-col gap-8">
-          <div className="text-center">
-            <h1 className="text-5xl font-bold text-primary mb-4">Colabs AI</h1>
-            <p className="text-xl text-secondary mb-2">
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-4xl text-primary">Colabs AI</CardTitle>
+            <CardDescription className="text-base">
               Collaborative AI Agents Platform
-            </p>
-            <p className="text-gray-600">
-              Sign in to start collaborating with AI agents
-            </p>
-          </div>
-          <SignInForm />
-        </div>
+            </CardDescription>
+            <p className="text-sm text-gray-600">Sign in to start collaborating with AI agents</p>
+          </CardHeader>
+          <CardContent>
+            <SignInForm />
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -114,28 +120,34 @@ function HomePage() {
           Hello, {loggedInUser?.email ?? "friend"}! Ready to collaborate with AI agents?
         </p>
         <div className="grid md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-xl font-semibold mb-3">AI Council Chat</h3>
-            <p className="text-gray-600 mb-4">
-              Engage with multiple AI agents in collaborative discussions and get diverse perspectives on your queries.
-            </p>
-            <div className="text-sm text-gray-500">
-              • Multi-agent collaboration
-              • Diverse AI perspectives
-              • Real-time responses
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h3 className="text-xl font-semibold mb-3">AI Benchmarks</h3>
-            <p className="text-gray-600 mb-4">
-              Run performance benchmarks on AI agents to evaluate their accuracy, latency, and throughput.
-            </p>
-            <div className="text-sm text-gray-500">
-              • Performance metrics
-              • Accuracy testing
-              • Latency analysis
-            </div>
-          </div>
+          <Card className="text-left">
+            <CardHeader>
+              <CardTitle className="text-xl">AI Council Chat</CardTitle>
+              <CardDescription className="text-gray-600">
+                Engage with multiple AI agents in collaborative discussions and get diverse
+                perspectives on your queries.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-500 space-y-1">
+              <p>• Multi-agent collaboration</p>
+              <p>• Diverse AI perspectives</p>
+              <p>• Real-time responses</p>
+            </CardContent>
+          </Card>
+          <Card className="text-left">
+            <CardHeader>
+              <CardTitle className="text-xl">AI Benchmarks</CardTitle>
+              <CardDescription className="text-gray-600">
+                Run performance benchmarks on AI agents to evaluate their accuracy, latency, and
+                throughput.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="text-sm text-gray-500 space-y-1">
+              <p>• Performance metrics</p>
+              <p>• Accuracy testing</p>
+              <p>• Latency analysis</p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
