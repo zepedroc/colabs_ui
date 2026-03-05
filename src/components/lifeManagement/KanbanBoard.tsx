@@ -82,7 +82,7 @@ function CreateTagInput({
         type="color"
         value={color}
         onChange={(e) => setColor(e.target.value)}
-        className="h-9 w-9 rounded-sm border cursor-pointer"
+        className="h-9 w-9 rounded-lg border border-slate-200 cursor-pointer"
       />
       <Button type="button" variant="outline" size="sm" onClick={handleCreate}>
         Add
@@ -290,7 +290,7 @@ export function KanbanBoard() {
                 }}
                 placeholder="What needs to be done?"
                 rows={3}
-                className="flex min-h-[80px] w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-gray-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 resize-y"
+                className="flex min-h-[80px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm transition-all placeholder:text-slate-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 resize-y"
               />
             </div>
             <div className="grid gap-2">
@@ -301,7 +301,7 @@ export function KanbanBoard() {
                 onChange={(e) => setNewTaskDescription(e.target.value)}
                 placeholder="Optional details..."
                 rows={2}
-                className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-xs transition-colors placeholder:text-gray-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary resize-y"
+                className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm transition-all placeholder:text-slate-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary resize-y"
               />
             </div>
             <div className="grid gap-2">
@@ -552,14 +552,14 @@ function KanbanColumn({
 
   return (
     <div className="shrink-0 w-72 flex flex-col">
-      <h3 className="font-semibold text-slate-700 mb-3">{column.title}</h3>
+      <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide">{column.title}</h3>
       <Droppable droppableId={column.id}>
         {(provided) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`flex-1 min-h-[200px] rounded-lg border p-2 space-y-2 transition-colors ${
-              isDone ? "bg-green-50/80 border-green-200" : "bg-gray-50 border-gray-200"
+            className={`flex-1 min-h-[200px] rounded-xl border p-3 space-y-2 transition-colors ${
+              isDone ? "bg-emerald-50/80 border-emerald-200" : "bg-slate-50/80 border-slate-200"
             }`}
           >
             {canAddTasks && (
@@ -568,7 +568,7 @@ function KanbanColumn({
                   onClick={onOpenAddTaskDialog}
                   variant="ghost"
                   size="sm"
-                  className="w-full justify-start text-slate-600 hover:text-slate-900"
+                  className="w-full justify-start text-slate-600 hover:text-slate-900 hover:bg-slate-100/50"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Add task
@@ -584,9 +584,9 @@ function KanbanColumn({
                     {...provided.dragHandleProps}
                   >
                     <Card
-                      className={`cursor-grab active:cursor-grabbing transition-colors ${
-                        snapshot.isDragging ? "shadow-lg opacity-90" : ""
-                      } ${isDone ? "border-green-200 bg-green-50/50" : ""}`}
+                      className={`cursor-grab active:cursor-grabbing transition-all ${
+                        snapshot.isDragging ? "shadow-lg opacity-95 scale-[1.02]" : ""
+                      } ${isDone ? "border-emerald-200 bg-emerald-50/50" : ""}`}
                     >
                       <CardContent className="p-3 flex flex-col gap-2">
                         <div className="flex items-start justify-between gap-2">
@@ -619,7 +619,7 @@ function KanbanColumn({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-gray-500 hover:text-primary"
+                              className="h-8 w-8 text-slate-500 hover:text-primary"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onOpenEditDialog(task);
@@ -630,7 +630,7 @@ function KanbanColumn({
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-gray-500 hover:text-red-600"
+                              className="h-8 w-8 text-slate-500 hover:text-red-600"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onDeleteTask(task._id);

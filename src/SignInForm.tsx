@@ -53,7 +53,7 @@ export function SignInForm() {
         <Button type="submit" disabled={submitting}>
           {flow === "signIn" ? "Sign in" : "Sign up"}
         </Button>
-        <div className="text-center text-sm text-secondary">
+        <div className="text-center text-sm text-slate-600">
           <span>{flow === "signIn" ? "Don't have an account? " : "Already have an account? "}</span>
           <Button
             type="button"
@@ -67,7 +67,7 @@ export function SignInForm() {
       </form>
       <div className="flex items-center justify-center my-4 gap-4">
         <Separator className="flex-1" />
-        <span className="text-secondary text-sm">or</span>
+        <span className="text-slate-500 text-sm">or</span>
         <Separator className="flex-1" />
       </div>
       <Button variant="outline" className="w-full" onClick={() => void signIn("anonymous")}>
