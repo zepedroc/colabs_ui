@@ -247,6 +247,92 @@ export const deleteTask = mutation({
   },
 });
 
+// --- Ideas ---
+
+export const listIdeas = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    const ideas = await ctx.db
+      .query("lifeManagementIdeas")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    return ideas.sort((a, b) => (a.order ?? 999999) - (b.order ?? 999999));
+  },
+});
+
+export const addIdea = mutation({
+  args: {
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const existing = await ctx.db
+      .query("lifeManagementIdeas")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    const order =
+      existing.length > 0
+        ? Math.max(...existing.map((i) => i.order ?? 0), -1) + 1
+        : 0;
+
+    return await ctx.db.insert("lifeManagementIdeas", {
+      userId,
+      content: args.content,
+      order,
+    });
+  },
+});
+
+export const removeIdea = mutation({
+  args: {
+    ideaId: v.id("lifeManagementIdeas"),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const idea = await ctx.db.get(args.ideaId);
+    if (!idea || idea.userId !== userId) {
+      throw new Error("Idea not found");
+    }
+
+    await ctx.db.delete(args.ideaId);
+    return null;
+  },
+});
+
+export const reorderIdeas = mutation({
+  args: {
+    orderedIds: v.array(v.id("lifeManagementIdeas")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    for (let i = 0; i < args.orderedIds.length; i++) {
+      const idea = await ctx.db.get(args.orderedIds[i]);
+      if (idea && idea.userId === userId) {
+        await ctx.db.patch(args.orderedIds[i], { order: i });
+      }
+    }
+    return null;
+  },
+});
+
 // --- Pains ---
 
 export const listPains = query({
@@ -257,10 +343,11 @@ export const listPains = query({
       return [];
     }
 
-    return await ctx.db
+    const pains = await ctx.db
       .query("lifeManagementPains")
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
+    return pains.sort((a, b) => (a.order ?? 999999) - (b.order ?? 999999));
   },
 });
 
@@ -274,9 +361,20 @@ export const addPain = mutation({
       throw new Error("Not authenticated");
     }
 
+    const existing = await ctx.db
+      .query("lifeManagementPains")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    const order =
+      existing.length > 0
+        ? Math.max(...existing.map((p) => p.order ?? 0), -1) + 1
+        : 0;
+
     return await ctx.db.insert("lifeManagementPains", {
       userId,
       content: args.content,
+      order,
     });
   },
 });
@@ -297,6 +395,26 @@ export const removePain = mutation({
     }
 
     await ctx.db.delete(args.painId);
+    return null;
+  },
+});
+
+export const reorderPains = mutation({
+  args: {
+    orderedIds: v.array(v.id("lifeManagementPains")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    for (let i = 0; i < args.orderedIds.length; i++) {
+      const pain = await ctx.db.get(args.orderedIds[i]);
+      if (pain && pain.userId === userId) {
+        await ctx.db.patch(args.orderedIds[i], { order: i });
+      }
+    }
     return null;
   },
 });
@@ -367,8 +485,7 @@ export const removeLearning = mutation({
 
 export const reorderLearnings = mutation({
   args: {
-    learningId: v.id("lifeManagementLearnings"),
-    order: v.number(),
+    orderedIds: v.array(v.id("lifeManagementLearnings")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -376,12 +493,12 @@ export const reorderLearnings = mutation({
       throw new Error("Not authenticated");
     }
 
-    const learning = await ctx.db.get(args.learningId);
-    if (!learning || learning.userId !== userId) {
-      throw new Error("Learning not found");
+    for (let i = 0; i < args.orderedIds.length; i++) {
+      const learning = await ctx.db.get(args.orderedIds[i]);
+      if (learning && learning.userId === userId) {
+        await ctx.db.patch(args.orderedIds[i], { order: i });
+      }
     }
-
-    await ctx.db.patch(args.learningId, { order: args.order });
     return null;
   },
 });

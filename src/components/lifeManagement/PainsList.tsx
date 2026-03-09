@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { DraggableList } from "./DraggableList";
 
 export function PainsList() {
   const [newPain, setNewPain] = useState("");
@@ -13,6 +14,7 @@ export function PainsList() {
   const pains = useQuery(api.lifeManagement.listPains) ?? [];
   const addPain = useMutation(api.lifeManagement.addPain);
   const removePain = useMutation(api.lifeManagement.removePain);
+  const reorderPains = useMutation(api.lifeManagement.reorderPains);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +29,10 @@ export function PainsList() {
     await removePain({ painId });
   };
 
+  const handleReorder = async (orderedIds: string[]) => {
+    await reorderPains({ orderedIds: orderedIds as Id<"lifeManagementPains">[] });
+  };
+
   return (
     <div className="max-w-2xl">
       <form onSubmit={handleAdd} className="flex gap-2 mb-4">
@@ -38,26 +44,26 @@ export function PainsList() {
         />
         <Button type="submit">Add</Button>
       </form>
-      <ul className="space-y-2">
-        {pains.map((pain) => (
-          <li key={pain._id}>
-            <Card>
-              <CardContent className="p-3 flex items-center justify-between gap-2">
-                <span className="text-sm">{pain.content}</span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600"
-                  onClick={() => handleRemove(pain._id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </CardContent>
-            </Card>
-          </li>
-        ))}
-      </ul>
-      {pains.length === 0 && <p className="text-sm text-slate-500 mt-4">No pains recorded yet.</p>}
+      <DraggableList
+        items={pains}
+        onReorder={handleReorder}
+        renderItem={(pain, isDragging) => (
+          <Card className={isDragging ? "ring-2 ring-primary/20" : undefined}>
+            <CardContent className="p-3 flex items-center justify-between gap-2">
+              <span className="text-sm">{pain.content}</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600"
+                onClick={() => handleRemove(pain._id)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        emptyMessage="No pains recorded yet."
+      />
     </div>
   );
 }

@@ -1,6 +1,16 @@
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { useMutation, useQuery } from "convex/react";
-import { AlertTriangle, ArrowDown, ArrowUp, Minus, Pencil, Plus, Tag, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  Minus,
+  Pencil,
+  Plus,
+  Tag,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 
@@ -53,6 +64,51 @@ const DEFAULT_TAG_COLORS = [
   "#8b5cf6",
   "#ec4899",
 ];
+
+const UNTAGGED_GROUP_ID = "__untagged__";
+const UNTAGGED_GROUP_COLOR = "#94a3b8";
+
+type TaskGroup = {
+  id: Id<"lifeManagementTags"> | typeof UNTAGGED_GROUP_ID;
+  title: string;
+  color: string;
+  tasks: Doc<"lifeManagementTasks">[];
+};
+
+function getPrimaryTag(
+  task: Doc<"lifeManagementTasks">,
+  tagsById: Map<Id<"lifeManagementTags">, Doc<"lifeManagementTags">>,
+) {
+  if (!task.tagIds?.length) return null;
+  return task.tagIds
+    .map((tagId) => tagsById.get(tagId))
+    .find((tag): tag is Doc<"lifeManagementTags"> => Boolean(tag));
+}
+
+function groupTasksByPrimaryTag(
+  tasks: Doc<"lifeManagementTasks">[],
+  tagsById: Map<Id<"lifeManagementTags">, Doc<"lifeManagementTags">>,
+) {
+  const groups = new Map<TaskGroup["id"], TaskGroup>();
+
+  for (const task of tasks) {
+    const primaryTag = getPrimaryTag(task, tagsById);
+    const groupId = primaryTag?._id ?? UNTAGGED_GROUP_ID;
+
+    if (!groups.has(groupId)) {
+      groups.set(groupId, {
+        id: groupId,
+        title: primaryTag?.name ?? "General",
+        color: primaryTag?.color ?? UNTAGGED_GROUP_COLOR,
+        tasks: [],
+      });
+    }
+
+    groups.get(groupId)?.tasks.push(task);
+  }
+
+  return Array.from(groups.values());
+}
 
 function CreateTagInput({
   onCreateTag,
@@ -109,6 +165,12 @@ type OptimisticMove = {
   destIndex: number;
 };
 
+type ActiveDrag = {
+  taskId: Id<"lifeManagementTasks">;
+  sourceStatus: TaskStatus;
+  sourceGroupId: TaskGroup["id"];
+};
+
 export function KanbanBoard() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskDescription, setNewTaskDescription] = useState("");
@@ -117,6 +179,8 @@ export function KanbanBoard() {
   const [addTaskDialogOpen, setAddTaskDialogOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<Id<"lifeManagementTasks"> | null>(null);
   const [optimisticMove, setOptimisticMove] = useState<OptimisticMove | null>(null);
+  const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
 
   const tasks = useQuery(api.lifeManagement.listTasks) ?? [];
   const tags = useQuery(api.lifeManagement.listTags) ?? [];
@@ -144,6 +208,12 @@ export function KanbanBoard() {
       ...destTasks,
     ];
   }, [tasks, optimisticMove]);
+  const tagsById = useMemo(() => new Map(tags.map((tag) => [tag._id, tag] as const)), [tags]);
+
+  const toggleGroup = (status: TaskStatus, groupId: TaskGroup["id"]) => {
+    const groupKey = `${status}:${groupId}`;
+    setCollapsedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  };
 
   const handleAddTask = async () => {
     const title = newTaskTitle.trim();
@@ -198,7 +268,10 @@ export function KanbanBoard() {
     source: { droppableId: string; index: number };
     draggableId: string;
   }) => {
-    if (!result.destination) return;
+    if (!result.destination) {
+      setActiveDrag(null);
+      return;
+    }
 
     const taskId = result.draggableId as Id<"lifeManagementTasks">;
     const sourceStatus = result.source.droppableId as TaskStatus;
@@ -206,6 +279,7 @@ export function KanbanBoard() {
     const destinationIndex = result.destination.index;
 
     if (sourceStatus === destinationStatus && result.source.index === destinationIndex) {
+      setActiveDrag(null);
       return;
     }
 
@@ -224,7 +298,23 @@ export function KanbanBoard() {
       });
     } finally {
       setOptimisticMove(null);
+      setActiveDrag(null);
     }
+  };
+
+  const handleDragStart = (start: {
+    source: { droppableId: string; index: number };
+    draggableId: string;
+  }) => {
+    const taskId = start.draggableId as Id<"lifeManagementTasks">;
+    const sourceStatus = start.source.droppableId as TaskStatus;
+    const sourceTasks = getTasksByStatus(displayedTasks, sourceStatus);
+    const sourceGroups = groupTasksByPrimaryTag(sourceTasks, tagsById);
+    const sourceGroupId =
+      sourceGroups.find((group) => group.tasks.some((task) => task._id === taskId))?.id ??
+      UNTAGGED_GROUP_ID;
+
+    setActiveDrag({ taskId, sourceStatus, sourceGroupId });
   };
 
   const handleDelete = async (taskId: Id<"lifeManagementTasks">) => {
@@ -239,7 +329,7 @@ export function KanbanBoard() {
 
   return (
     <>
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4">
           {COLUMNS.map((column) => (
             <KanbanColumn
@@ -247,10 +337,13 @@ export function KanbanBoard() {
               column={column}
               tasks={getTasksByStatus(displayedTasks, column.id)}
               tags={tags}
+              activeDrag={activeDrag}
+              collapsedGroups={collapsedGroups}
               canAddTasks={column.id === "todo"}
               onOpenAddTaskDialog={() => setAddTaskDialogOpen(true)}
               onDeleteTask={handleDelete}
               onOpenEditDialog={handleStartEdit}
+              onToggleGroup={toggleGroup}
             />
           ))}
         </div>
@@ -535,32 +628,127 @@ function KanbanColumn({
   column,
   tasks,
   tags,
+  activeDrag,
+  collapsedGroups,
   canAddTasks,
   onOpenAddTaskDialog,
   onDeleteTask,
   onOpenEditDialog,
+  onToggleGroup,
 }: {
   column: { id: TaskStatus; title: string };
   tasks: Doc<"lifeManagementTasks">[];
   tags: Doc<"lifeManagementTags">[];
+  activeDrag: ActiveDrag | null;
+  collapsedGroups: Record<string, boolean>;
   canAddTasks: boolean;
   onOpenAddTaskDialog: () => void;
   onDeleteTask: (id: Id<"lifeManagementTasks">) => void;
   onOpenEditDialog: (task: Doc<"lifeManagementTasks">) => void;
+  onToggleGroup: (status: TaskStatus, groupId: TaskGroup["id"]) => void;
 }) {
   const isDone = column.id === "done";
+  const tagsById = useMemo(() => new Map(tags.map((tag) => [tag._id, tag] as const)), [tags]);
+  const groupedTasks = useMemo(() => groupTasksByPrimaryTag(tasks, tagsById), [tasks, tagsById]);
+  const visibleTasks = useMemo(() => {
+    return groupedTasks.flatMap((group) => {
+      const groupKey = `${column.id}:${group.id}`;
+      const isCollapsed = collapsedGroups[groupKey] ?? false;
+      return isCollapsed ? [] : group.tasks;
+    });
+  }, [groupedTasks, collapsedGroups, column.id]);
+  const visibleTaskIndexById = useMemo(() => {
+    return new Map(visibleTasks.map((task, index) => [task._id, index] as const));
+  }, [visibleTasks]);
+
+  const renderTaskCard = (task: Doc<"lifeManagementTasks">, isDragging: boolean) => (
+    <Card
+      className={cn(
+        "cursor-grab rounded-2xl border border-white/80 bg-white/92 shadow-sm transition-[transform,box-shadow,border-color] active:cursor-grabbing hover:border-slate-300 hover:shadow-md",
+        isDragging && "scale-[1.02] shadow-xl ring-2 ring-primary/15",
+        isDone && "border-emerald-200/80 bg-white/88",
+      )}
+    >
+      <CardContent className="p-3 flex flex-col gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            {task.priority && (
+              <span
+                className="mr-2 flex items-center gap-1 text-[10px] font-medium uppercase"
+                style={{
+                  color: PRIORITY_CONFIG[task.priority]?.color ?? "#64748b",
+                }}
+              >
+                {(() => {
+                  const { icon: Icon } = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.low;
+                  return <Icon className="h-3 w-3 shrink-0" />;
+                })()}
+                {task.priority}
+              </span>
+            )}
+            <span className="block text-sm line-clamp-2 wrap-break-word text-slate-800">
+              {task.title}
+            </span>
+            {task.description && (
+              <p className="mt-1 text-xs line-clamp-2 text-slate-500">{task.description}</p>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-500 hover:text-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenEditDialog(task);
+              }}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-slate-500 hover:text-red-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDeleteTask(task._id);
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   return (
-    <div className="shrink-0 w-72 flex flex-col">
-      <h3 className="font-semibold text-slate-700 mb-3 text-sm uppercase tracking-wide">{column.title}</h3>
-      <Droppable droppableId={column.id}>
-        {(provided) => (
+    <div className="shrink-0 w-80 flex flex-col">
+      <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-700 px-1">
+        {column.title}
+      </h3>
+      <Droppable
+        droppableId={column.id}
+        getContainerForClone={() => document.body}
+        renderClone={(provided, snapshot, rubric) => {
+          const task = visibleTasks[rubric.source.index];
+          if (!task) return null;
+          return (
+            <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
+              {renderTaskCard(task, snapshot.isDragging)}
+            </div>
+          );
+        }}
+      >
+        {(provided, snapshot) => (
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className={`flex-1 min-h-[200px] rounded-xl border p-3 space-y-2 transition-colors ${
-              isDone ? "bg-emerald-50/80 border-emerald-200" : "bg-slate-50/80 border-slate-200"
-            }`}
+            className={cn(
+              "flex-1 min-h-[220px] rounded-[1.75rem] border p-3 transition-all",
+              isDone ? "bg-emerald-50/80 border-emerald-200" : "bg-slate-50/90 border-slate-200",
+              snapshot.isDraggingOver && "border-primary/40",
+            )}
           >
             {canAddTasks && (
               <div className="mb-2">
@@ -575,98 +763,116 @@ function KanbanColumn({
                 </Button>
               </div>
             )}
-            {tasks.map((task, index) => (
-              <Draggable key={task._id} draggableId={task._id} index={index}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    {...provided.dragHandleProps}
-                  >
-                    <Card
-                      className={`cursor-grab active:cursor-grabbing transition-all ${
-                        snapshot.isDragging ? "shadow-lg opacity-95 scale-[1.02]" : ""
-                      } ${isDone ? "border-emerald-200 bg-emerald-50/50" : ""}`}
+            {groupedTasks.length === 0 ? (
+              <div className="flex min-h-[140px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 text-center text-sm text-slate-400">
+                No tasks here yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {groupedTasks.map((group) => {
+                  const groupKey = `${column.id}:${group.id}`;
+                  const isCollapsed = collapsedGroups[groupKey] ?? false;
+
+                  return (
+                    <section
+                      key={groupKey}
+                      className="rounded-2xl border shadow-sm"
+                      style={{
+                        borderColor: `${group.color}30`,
+                        background: `linear-gradient(180deg, ${group.color}14 0%, rgba(255,255,255,0.97) 62%)`,
+                      }}
                     >
-                      <CardContent className="p-3 flex flex-col gap-2">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            {task.priority && (
-                              <span
-                                className="flex items-center gap-1 text-[10px] font-medium uppercase mr-2"
-                                style={{
-                                  color: PRIORITY_CONFIG[task.priority]?.color ?? "#64748b",
-                                }}
-                              >
-                                {(() => {
-                                  const { icon: Icon } =
-                                    PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.low;
-                                  return <Icon className="h-3 w-3 shrink-0" />;
-                                })()}
-                                {task.priority}
-                              </span>
-                            )}
-                            <span className="text-sm line-clamp-2 wrap-break-word block">
-                              {task.title}
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 px-3.5 py-3 text-left transition hover:bg-white/35"
+                        onClick={() => onToggleGroup(column.id, group.id)}
+                        aria-expanded={!isCollapsed}
+                      >
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_0_4px_rgba(255,255,255,0.9)]"
+                          style={{ backgroundColor: group.color }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-semibold text-slate-800">
+                              {group.title}
                             </span>
-                            {task.description && (
-                              <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                                {task.description}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex gap-0.5 shrink-0">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-500 hover:text-primary"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenEditDialog(task);
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-slate-500 hover:text-red-600"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteTask(task._id);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <span className="rounded-full bg-white/85 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                              {group.tasks.length}
+                            </span>
                           </div>
                         </div>
-                        {task.tagIds && task.tagIds.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
-                            {task.tagIds.map((tagId) => {
-                              const tag = tags.find((t) => t._id === tagId);
-                              if (!tag) return null;
-                              return (
-                                <span
-                                  key={tagId}
-                                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium"
-                                  style={{
-                                    backgroundColor: `${tag.color}33`,
-                                    color: tag.color,
-                                    border: `1px solid ${tag.color}33`,
-                                  }}
+                        <ChevronDown
+                          className={cn(
+                            "h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300",
+                            !isCollapsed && "rotate-180",
+                          )}
+                        />
+                      </button>
+
+                      <div
+                        className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+                        style={{
+                          gridTemplateRows: isCollapsed ? "0fr" : "1fr",
+                          opacity: isCollapsed ? 0.72 : 1,
+                        }}
+                      >
+                        <div className="overflow-hidden">
+                          <div className="space-y-2 px-3 pb-3">
+                            {!isCollapsed &&
+                              group.tasks.map((task) => (
+                                <Draggable
+                                  key={task._id}
+                                  draggableId={task._id}
+                                  index={visibleTaskIndexById.get(task._id) ?? 0}
                                 >
-                                  {tag.name}
-                                </span>
-                              );
-                            })}
+                                  {(provided, snapshot) => {
+                                    const shouldKeepSourceSpace =
+                                      snapshot.isDragging && activeDrag?.taskId === task._id;
+                                    const shouldFreezeInPlace =
+                                      !shouldKeepSourceSpace &&
+                                      activeDrag?.sourceStatus === column.id &&
+                                      activeDrag.sourceGroupId !== group.id;
+                                    const draggableStyle = shouldKeepSourceSpace
+                                      ? {
+                                          ...provided.draggableProps.style,
+                                          position: "static",
+                                          top: "auto",
+                                          left: "auto",
+                                          transform: "none",
+                                          transition: "none",
+                                          opacity: 0,
+                                          pointerEvents: "none",
+                                        }
+                                      : shouldFreezeInPlace
+                                        ? {
+                                            ...provided.draggableProps.style,
+                                            transform: "none",
+                                            transition: "none",
+                                          }
+                                        : provided.draggableProps.style;
+
+                                    return (
+                                      <div
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        {...provided.dragHandleProps}
+                                        style={draggableStyle}
+                                      >
+                                        {renderTaskCard(task, snapshot.isDragging)}
+                                      </div>
+                                    );
+                                  }}
+                                </Draggable>
+                              ))}
                           </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-              </Draggable>
-            ))}
+                        </div>
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            )}
             {provided.placeholder}
           </div>
         )}
