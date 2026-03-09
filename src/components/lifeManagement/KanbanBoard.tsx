@@ -11,7 +11,7 @@ import {
   Tag,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -67,6 +67,7 @@ const DEFAULT_TAG_COLORS = [
 
 const UNTAGGED_GROUP_ID = "__untagged__";
 const UNTAGGED_GROUP_COLOR = "#94a3b8";
+const GROUP_COLLAPSE_ANIMATION_MS = 260;
 
 type TaskGroup = {
   id: Id<"lifeManagementTags"> | typeof UNTAGGED_GROUP_ID;
@@ -181,6 +182,8 @@ export function KanbanBoard() {
   const [optimisticMove, setOptimisticMove] = useState<OptimisticMove | null>(null);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [collapsingGroups, setCollapsingGroups] = useState<Record<string, boolean>>({});
+  const collapseTimeoutRef = useRef<Record<string, ReturnType<typeof window.setTimeout>>>({});
 
   const tasks = useQuery(api.lifeManagement.listTasks) ?? [];
   const tags = useQuery(api.lifeManagement.listTags) ?? [];
@@ -210,9 +213,49 @@ export function KanbanBoard() {
   }, [tasks, optimisticMove]);
   const tagsById = useMemo(() => new Map(tags.map((tag) => [tag._id, tag] as const)), [tags]);
 
+  useEffect(() => {
+    return () => {
+      Object.values(collapseTimeoutRef.current).forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+    };
+  }, []);
+
   const toggleGroup = (status: TaskStatus, groupId: TaskGroup["id"]) => {
     const groupKey = `${status}:${groupId}`;
-    setCollapsedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+
+    setCollapsedGroups((prev) => {
+      const willCollapse = !prev[groupKey];
+
+      if (willCollapse) {
+        setCollapsingGroups((active) => ({ ...active, [groupKey]: true }));
+        if (collapseTimeoutRef.current[groupKey]) {
+          window.clearTimeout(collapseTimeoutRef.current[groupKey]);
+        }
+        collapseTimeoutRef.current[groupKey] = window.setTimeout(() => {
+          setCollapsingGroups((active) => {
+            if (!active[groupKey]) return active;
+            const next = { ...active };
+            delete next[groupKey];
+            return next;
+          });
+          delete collapseTimeoutRef.current[groupKey];
+        }, GROUP_COLLAPSE_ANIMATION_MS);
+      } else {
+        if (collapseTimeoutRef.current[groupKey]) {
+          window.clearTimeout(collapseTimeoutRef.current[groupKey]);
+          delete collapseTimeoutRef.current[groupKey];
+        }
+        setCollapsingGroups((active) => {
+          if (!active[groupKey]) return active;
+          const next = { ...active };
+          delete next[groupKey];
+          return next;
+        });
+      }
+
+      return { ...prev, [groupKey]: willCollapse };
+    });
   };
 
   const handleAddTask = async () => {
@@ -339,6 +382,7 @@ export function KanbanBoard() {
               tags={tags}
               activeDrag={activeDrag}
               collapsedGroups={collapsedGroups}
+              collapsingGroups={collapsingGroups}
               canAddTasks={column.id === "todo"}
               onOpenAddTaskDialog={() => setAddTaskDialogOpen(true)}
               onDeleteTask={handleDelete}
@@ -630,6 +674,7 @@ function KanbanColumn({
   tags,
   activeDrag,
   collapsedGroups,
+  collapsingGroups,
   canAddTasks,
   onOpenAddTaskDialog,
   onDeleteTask,
@@ -641,6 +686,7 @@ function KanbanColumn({
   tags: Doc<"lifeManagementTags">[];
   activeDrag: ActiveDrag | null;
   collapsedGroups: Record<string, boolean>;
+  collapsingGroups: Record<string, boolean>;
   canAddTasks: boolean;
   onOpenAddTaskDialog: () => void;
   onDeleteTask: (id: Id<"lifeManagementTasks">) => void;
@@ -654,9 +700,10 @@ function KanbanColumn({
     return groupedTasks.flatMap((group) => {
       const groupKey = `${column.id}:${group.id}`;
       const isCollapsed = collapsedGroups[groupKey] ?? false;
-      return isCollapsed ? [] : group.tasks;
+      const isAnimatingClosed = collapsingGroups[groupKey] ?? false;
+      return isCollapsed && !isAnimatingClosed ? [] : group.tasks;
     });
-  }, [groupedTasks, collapsedGroups, column.id]);
+  }, [groupedTasks, collapsedGroups, collapsingGroups, column.id]);
   const visibleTaskIndexById = useMemo(() => {
     return new Map(visibleTasks.map((task, index) => [task._id, index] as const));
   }, [visibleTasks]);
@@ -772,6 +819,8 @@ function KanbanColumn({
                 {groupedTasks.map((group) => {
                   const groupKey = `${column.id}:${group.id}`;
                   const isCollapsed = collapsedGroups[groupKey] ?? false;
+                  const isAnimatingClosed = collapsingGroups[groupKey] ?? false;
+                  const shouldRenderTasks = !isCollapsed || isAnimatingClosed;
 
                   return (
                     <section
@@ -811,7 +860,8 @@ function KanbanColumn({
                       </button>
 
                       <div
-                        className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+                        className="grid overflow-hidden transition-[grid-template-rows,opacity] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[grid-template-rows,opacity]"
+                        aria-hidden={isCollapsed}
                         style={{
                           gridTemplateRows: isCollapsed ? "0fr" : "1fr",
                           opacity: isCollapsed ? 0.72 : 1,
@@ -819,7 +869,7 @@ function KanbanColumn({
                       >
                         <div className="overflow-hidden">
                           <div className="space-y-2 px-3 pb-3">
-                            {!isCollapsed &&
+                            {shouldRenderTasks &&
                               group.tasks.map((task) => (
                                 <Draggable
                                   key={task._id}
