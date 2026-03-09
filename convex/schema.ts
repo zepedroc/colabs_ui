@@ -94,9 +94,16 @@ const applicationTables = {
     tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   }).index("by_user_and_status", ["userId", "status"]),
 
+  lifeManagementIdeas: defineTable({
+    userId: v.id("users"),
+    content: v.string(),
+    order: v.optional(v.number()),
+  }).index("by_user", ["userId"]),
+
   lifeManagementPains: defineTable({
     userId: v.id("users"),
     content: v.string(),
+    order: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   lifeManagementLearnings: defineTable({

@@ -1,3 +1,4 @@
+import { IdeasList } from "@/components/lifeManagement/IdeasList";
 import { KanbanBoard } from "@/components/lifeManagement/KanbanBoard";
 import { LearnList } from "@/components/lifeManagement/LearnList";
 import { PainsList } from "@/components/lifeManagement/PainsList";
@@ -19,6 +20,12 @@ export function LifeManagementPage() {
                     Kanban
                   </TabsTrigger>
                   <TabsTrigger
+                    value="ideas"
+                    className="flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                  >
+                    Ideas
+                  </TabsTrigger>
+                  <TabsTrigger
                     value="pains"
                     className="flex-1 data-[state=active]:bg-white data-[state=active]:shadow-sm"
                   >
@@ -34,6 +41,9 @@ export function LifeManagementPage() {
               </div>
               <TabsContent value="kanban" className="mt-0 p-6">
                 <KanbanBoard />
+              </TabsContent>
+              <TabsContent value="ideas" className="mt-0 p-6">
+                <IdeasList />
               </TabsContent>
               <TabsContent value="pains" className="mt-0 p-6">
                 <PainsList />
