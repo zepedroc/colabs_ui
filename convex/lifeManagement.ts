@@ -268,6 +268,7 @@ export const listIdeas = query({
 export const addIdea = mutation({
   args: {
     content: v.string(),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -289,7 +290,36 @@ export const addIdea = mutation({
       userId,
       content: args.content,
       order,
+      tagIds: args.tagIds?.length ? args.tagIds : undefined,
     });
+  },
+});
+
+export const updateIdea = mutation({
+  args: {
+    ideaId: v.id("lifeManagementIdeas"),
+    content: v.optional(v.string()),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const idea = await ctx.db.get(args.ideaId);
+    if (!idea || idea.userId !== userId) {
+      throw new Error("Idea not found");
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (args.content !== undefined) updates.content = args.content;
+    if (args.tagIds !== undefined) updates.tagIds = args.tagIds?.length ? args.tagIds : undefined;
+
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(args.ideaId, updates);
+    }
+    return null;
   },
 });
 
@@ -354,6 +384,7 @@ export const listPains = query({
 export const addPain = mutation({
   args: {
     content: v.string(),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -375,7 +406,36 @@ export const addPain = mutation({
       userId,
       content: args.content,
       order,
+      tagIds: args.tagIds?.length ? args.tagIds : undefined,
     });
+  },
+});
+
+export const updatePain = mutation({
+  args: {
+    painId: v.id("lifeManagementPains"),
+    content: v.optional(v.string()),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const pain = await ctx.db.get(args.painId);
+    if (!pain || pain.userId !== userId) {
+      throw new Error("Pain not found");
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (args.content !== undefined) updates.content = args.content;
+    if (args.tagIds !== undefined) updates.tagIds = args.tagIds?.length ? args.tagIds : undefined;
+
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(args.painId, updates);
+    }
+    return null;
   },
 });
 

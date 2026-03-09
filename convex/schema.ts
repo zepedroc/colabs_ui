@@ -98,12 +98,14 @@ const applicationTables = {
     userId: v.id("users"),
     content: v.string(),
     order: v.optional(v.number()),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   }).index("by_user", ["userId"]),
 
   lifeManagementPains: defineTable({
     userId: v.id("users"),
     content: v.string(),
     order: v.optional(v.number()),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   }).index("by_user", ["userId"]),
 
   lifeManagementLearnings: defineTable({
