@@ -151,7 +151,11 @@ function recordResponse(
   return response;
 }
 
-async function runRoundParallel(
+/**
+ * Run a round in parallel, yielding each model's response as soon as it completes.
+ * Returns the ordered results for use in subsequent rounds.
+ */
+async function* runRoundParallel(
   apiKey: string,
   models: string[],
   query: string,
@@ -159,9 +163,9 @@ async function runRoundParallel(
   totalRounds: number,
   allRounds: ModelResponse[][],
   modelHistories: Record<string, ChatMessage[]>,
-): Promise<ModelResponse[]> {
-  const promptsByModel: Record<string, string> = {};
-  const tasks = models.map(async (model) => {
+): AsyncGenerator<ModelResponse> {
+  type Wrapped = { p: Promise<{ response: ModelResponse; prompt: string; index: number }>; index: number };
+  const wrapped: Wrapped[] = models.map((model, index) => {
     const prompt = buildRoundPrompt(
       roundNumber,
       totalRounds,
@@ -171,19 +175,29 @@ async function runRoundParallel(
       allRounds,
       null,
     );
-    promptsByModel[model] = prompt;
     const messages: ChatMessage[] = [...modelHistories[model], { role: "user", content: prompt }];
-    const response = await querySingleModel(apiKey, model, messages);
-    return { response, prompt };
+    const p = querySingleModel(apiKey, model, messages).then((response) => ({
+      response: { model, content: response.content, error: response.error },
+      prompt,
+      index,
+    }));
+    return { p, index };
   });
 
-  const results = await Promise.all(tasks);
-  const ordered: ModelResponse[] = [];
-  for (const { response, prompt } of results) {
+  const results: (ModelResponse | null)[] = new Array(models.length);
+  let completed = 0;
+
+  while (completed < models.length) {
+    const { response, prompt, index } = await Promise.race(
+      wrapped
+        .filter((w) => results[w.index] === undefined)
+        .map((w) => w.p),
+    );
     const recorded = recordResponse(response, prompt, roundNumber, modelHistories);
-    ordered.push(recorded);
+    results[index] = recorded;
+    completed++;
+    yield recorded;
   }
-  return ordered;
 }
 
 async function runRoundConversation(
@@ -196,7 +210,8 @@ async function runRoundConversation(
   modelHistories: Record<string, ChatMessage[]>,
 ): Promise<ModelResponse[]> {
   if (roundNumber === 1) {
-    return runRoundParallel(
+    const results: ModelResponse[] = [];
+    for await (const response of runRoundParallel(
       apiKey,
       models,
       query,
@@ -204,7 +219,10 @@ async function runRoundConversation(
       totalRounds,
       allRounds,
       modelHistories,
-    );
+    )) {
+      results.push(response);
+    }
+    return results;
   }
 
   const roundResponses: ModelResponse[] = [];
@@ -259,30 +277,39 @@ export async function* queryCouncilStream(
   const allRounds: ModelResponse[][] = [];
 
   for (let roundNumber = 1; roundNumber <= rounds; roundNumber++) {
-    const roundResponses =
-      mode === "conversation"
-        ? await runRoundConversation(
-            apiKey,
-            models,
-            query,
-            roundNumber,
-            rounds,
-            allRounds,
-            modelHistories,
-          )
-        : await runRoundParallel(
-            apiKey,
-            models,
-            query,
-            roundNumber,
-            rounds,
-            allRounds,
-            modelHistories,
-          );
+    const roundResponses: ModelResponse[] = [];
 
-    for (const response of roundResponses) {
-      yield roundResponseEvent(roundNumber, response);
+    // Round 1 and parallel mode: yield each response as it completes
+    if (roundNumber === 1 || mode === "parallel") {
+      for await (const response of runRoundParallel(
+        apiKey,
+        models,
+        query,
+        roundNumber,
+        rounds,
+        allRounds,
+        modelHistories,
+      )) {
+        yield roundResponseEvent(roundNumber, response);
+        roundResponses.push(response);
+      }
+    } else {
+      // Conversation mode rounds 2+: sequential, yield each as we get it
+      const responses = await runRoundConversation(
+        apiKey,
+        models,
+        query,
+        roundNumber,
+        rounds,
+        allRounds,
+        modelHistories,
+      );
+      for (const response of responses) {
+        yield roundResponseEvent(roundNumber, response);
+        roundResponses.push(response);
+      }
     }
+
     allRounds.push(roundResponses);
   }
 

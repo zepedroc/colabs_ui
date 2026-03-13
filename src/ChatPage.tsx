@@ -55,6 +55,39 @@ function getAgentColorByIndex(index: number): (typeof AGENT_COLORS)[number] {
   return AGENT_COLORS[index % AGENT_COLORS.length];
 }
 
+function LoadingCard({
+  modelName,
+  colors,
+}: {
+  modelName: string;
+  colors: (typeof AGENT_COLORS)[number];
+}) {
+  return (
+    <Card
+      className={`${colors.border} border-l-4 ${colors.bg} min-w-0 shadow-sm overflow-hidden animate-pulse`}
+    >
+      <CardHeader className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
+        <span
+          className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
+        >
+          {modelName.split("/").pop() ?? modelName}
+        </span>
+      </CardHeader>
+      <CardContent className="px-4 py-4">
+        <div className="flex gap-2">
+          <div className="h-3 flex-1 rounded bg-slate-200/60" />
+          <div className="h-3 flex-1 rounded bg-slate-200/60" />
+          <div className="h-3 w-1/3 rounded bg-slate-200/60" />
+        </div>
+        <div className="flex gap-2 mt-2">
+          <div className="h-3 flex-1 rounded bg-slate-200/40" />
+          <div className="h-3 w-2/3 rounded bg-slate-200/40" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function extractMessageBody(content: string): string {
   const lines = content.split("\n");
   if (lines.length > 1) {
@@ -181,6 +214,10 @@ export function ChatPage() {
 
   const groups = groupMessages(messages);
 
+  /** True when the last message is from user and we're waiting for council responses */
+  const isWaitingForCouncil =
+    groups.length > 0 && groups[groups.length - 1].type === "user";
+
   const filteredGroups = groups.filter((group, idx) => {
     if (group.type !== "final") return true;
     const lastRound = [...groups]
@@ -213,7 +250,8 @@ export function ChatPage() {
               <CardContent className="text-center text-4xl pb-6">🤖</CardContent>
             </Card>
           ) : (
-            filteredGroups.map((group) => {
+            <>
+            {filteredGroups.map((group, idx) => {
               if (group.type === "user") {
                 const msg = group.messages[0];
                 return (
@@ -235,9 +273,26 @@ export function ChatPage() {
 
               if (group.type === "round" || group.type === "final") {
                 const title = group.type === "round" ? `Round ${group.round}` : "Final answers";
+                const messagesByModel = new Map(
+                  group.messages.map((m) => [m.model ?? "", m]),
+                );
                 const sortedMessages = [...group.messages].sort((a, b) =>
                   (a.model ?? "").localeCompare(b.model ?? ""),
                 );
+                const isLastGroup = idx === filteredGroups.length - 1;
+                const isRoundInProgress =
+                  group.type === "round" &&
+                  isLastGroup &&
+                  group.messages.length < selectedModels.length;
+                const slots = isRoundInProgress
+                  ? selectedModels.map((modelId) => ({
+                      modelId,
+                      msg: messagesByModel.get(modelId),
+                    }))
+                  : sortedMessages.map((m) => ({
+                      modelId: m.model ?? "Unknown",
+                      msg: m,
+                    }));
                 const groupKey =
                   group.type === "round"
                     ? `round-${group.round}`
@@ -257,9 +312,17 @@ export function ChatPage() {
                       </span>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {sortedMessages.map((msg, idx) => {
-                        const modelName = msg.model ?? "Unknown";
+                      {slots.map(({ modelId, msg }, idx) => {
                         const colors = getAgentColorByIndex(idx);
+                        if (!msg) {
+                          return (
+                            <LoadingCard
+                              key={`loading-${modelId}`}
+                              modelName={modelId}
+                              colors={colors}
+                            />
+                          );
+                        }
                         const body = extractMessageBody(msg.content);
                         return (
                           <Card
@@ -270,10 +333,13 @@ export function ChatPage() {
                               <span
                                 className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
                               >
-                                {modelName.split("/").pop() ?? modelName}
+                                {(msg.model ?? "Unknown").split("/").pop() ??
+                                  msg.model}
                               </span>
                               <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
-                                {new Date(msg._creationTime).toLocaleTimeString()}
+                                {new Date(
+                                  msg._creationTime,
+                                ).toLocaleTimeString()}
                               </span>
                             </CardHeader>
                             <CardContent className="px-4 py-4">
@@ -323,7 +389,26 @@ export function ChatPage() {
                   </Card>
                 </div>
               ));
-            })
+            })}
+            {isWaitingForCouncil && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                    Responding...
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {selectedModels.map((modelId, modelIdx) => (
+                    <LoadingCard
+                      key={`waiting-${modelId}`}
+                      modelName={modelId}
+                      colors={getAgentColorByIndex(modelIdx)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            </>
           )}
           {requestError && (
             <Card className="border-red-200 bg-red-50/50">
