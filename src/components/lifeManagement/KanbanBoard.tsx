@@ -37,6 +37,13 @@ import type { Doc, Id } from "../../../convex/_generated/dataModel";
 
 type TaskStatus = "todo" | "in_progress" | "done";
 type TaskPriority = "low" | "medium" | "high" | "urgent";
+type CursorAgentRef = "dev" | "main";
+type CursorAgentModel =
+  | "composer-1.5"
+  | "claude-4.6-opus-high-thinking"
+  | "gemini-3.1-pro-preview"
+  | "gpt-5.4-high"
+  | "gpt-5.3-codex-high";
 
 const COLUMNS: { id: TaskStatus; title: string }[] = [
   { id: "todo", title: "To Do" },
@@ -46,6 +53,9 @@ const COLUMNS: { id: TaskStatus; title: string }[] = [
 
 const PRIORITY_ORDER: TaskPriority[] = ["low", "medium", "high", "urgent"];
 const DEFAULT_PRIORITY: TaskPriority = "low";
+const DEFAULT_CURSOR_AGENT_REF: CursorAgentRef = "dev";
+const DEFAULT_CURSOR_AGENT_MODEL: CursorAgentModel = "composer-1.5";
+const CURSOR_AUTOMATION_GROUP_NAME = "colabs ai";
 
 const PRIORITY_CONFIG: Record<TaskPriority, { icon: React.ElementType; color: string }> = {
   low: { icon: ArrowDown, color: "#64748b" },
@@ -68,12 +78,30 @@ const DEFAULT_TAG_COLORS = [
 const UNTAGGED_GROUP_ID = "__untagged__";
 const UNTAGGED_GROUP_COLOR = "#94a3b8";
 const GROUP_COLLAPSE_ANIMATION_MS = 260;
+const CURSOR_REF_OPTIONS: Array<{ value: CursorAgentRef; label: string }> = [
+  { value: "dev", label: "dev" },
+  { value: "main", label: "main" },
+];
+const CURSOR_MODEL_OPTIONS: Array<{ value: CursorAgentModel; label: string }> = [
+  { value: "composer-1.5", label: "composer-1.5 (default)" },
+  { value: "claude-4.6-opus-high-thinking", label: "claude-4.6-opus-high-thinking" },
+  { value: "gemini-3.1-pro-preview", label: "gemini-3.1-pro-preview" },
+  { value: "gpt-5.4-high", label: "gpt-5.4-high" },
+  { value: "gpt-5.3-codex-high", label: "gpt-5.3-codex-high" },
+];
 
 type TaskGroup = {
   id: Id<"lifeManagementTags"> | typeof UNTAGGED_GROUP_ID;
   title: string;
   color: string;
   tasks: Doc<"lifeManagementTasks">[];
+};
+
+type NewTaskDraft = {
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  tagIds: Id<"lifeManagementTags">[];
 };
 
 function getPrimaryTag(
@@ -84,6 +112,30 @@ function getPrimaryTag(
   return task.tagIds
     .map((tagId) => tagsById.get(tagId))
     .find((tag): tag is Doc<"lifeManagementTags"> => Boolean(tag));
+}
+
+function normalizeTagName(name: string) {
+  return name.trim().toLowerCase();
+}
+
+function getPrimaryTagForTagIds(
+  tagIds: Id<"lifeManagementTags">[],
+  tagsById: Map<Id<"lifeManagementTags">, Doc<"lifeManagementTags">>,
+) {
+  if (!tagIds.length) return null;
+  return tagIds
+    .map((tagId) => tagsById.get(tagId))
+    .find((tag): tag is Doc<"lifeManagementTags"> => Boolean(tag));
+}
+
+function shouldOfferCursorAutomation(
+  tagIds: Id<"lifeManagementTags">[],
+  tagsById: Map<Id<"lifeManagementTags">, Doc<"lifeManagementTags">>,
+) {
+  return (
+    normalizeTagName(getPrimaryTagForTagIds(tagIds, tagsById)?.name ?? "") ===
+    CURSOR_AUTOMATION_GROUP_NAME
+  );
 }
 
 function groupTasksByPrimaryTag(
@@ -178,12 +230,20 @@ export function KanbanBoard() {
   const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>(DEFAULT_PRIORITY);
   const [newTaskTagIds, setNewTaskTagIds] = useState<Id<"lifeManagementTags">[]>([]);
   const [addTaskDialogOpen, setAddTaskDialogOpen] = useState(false);
+  const [cursorAutomationDialogOpen, setCursorAutomationDialogOpen] = useState(false);
+  const [pendingCursorTask, setPendingCursorTask] = useState<NewTaskDraft | null>(null);
+  const [cursorAutomationRef, setCursorAutomationRef] =
+    useState<CursorAgentRef>(DEFAULT_CURSOR_AGENT_REF);
+  const [cursorAutomationModel, setCursorAutomationModel] = useState<CursorAgentModel>(
+    DEFAULT_CURSOR_AGENT_MODEL,
+  );
+  const [cursorAutomationPrompt, setCursorAutomationPrompt] = useState("");
   const [editingTaskId, setEditingTaskId] = useState<Id<"lifeManagementTasks"> | null>(null);
   const [optimisticMove, setOptimisticMove] = useState<OptimisticMove | null>(null);
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [collapsingGroups, setCollapsingGroups] = useState<Record<string, boolean>>({});
-  const collapseTimeoutRef = useRef<Record<string, ReturnType<typeof window.setTimeout>>>({});
+  const collapseTimeoutRef = useRef<Record<string, number>>({});
 
   const tasks = useQuery(api.lifeManagement.listTasks) ?? [];
   const tags = useQuery(api.lifeManagement.listTags) ?? [];
@@ -258,21 +318,95 @@ export function KanbanBoard() {
     });
   };
 
-  const handleAddTask = async () => {
-    const title = newTaskTitle.trim();
-    if (!title) return;
-
+  const resetNewTaskForm = () => {
     setNewTaskTitle("");
     setNewTaskDescription("");
     setNewTaskPriority(DEFAULT_PRIORITY);
     setNewTaskTagIds([]);
-    setAddTaskDialogOpen(false);
-    await createTask({
+  };
+
+  const resetCursorAutomationForm = () => {
+    setCursorAutomationRef(DEFAULT_CURSOR_AGENT_REF);
+    setCursorAutomationModel(DEFAULT_CURSOR_AGENT_MODEL);
+    setCursorAutomationPrompt("");
+  };
+
+  const applyTaskDraft = (draft: NewTaskDraft) => {
+    setNewTaskTitle(draft.title);
+    setNewTaskDescription(draft.description);
+    setNewTaskPriority(draft.priority);
+    setNewTaskTagIds([...draft.tagIds]);
+  };
+
+  const buildNewTaskDraft = (): NewTaskDraft | null => {
+    const title = newTaskTitle.trim();
+    if (!title) return null;
+
+    return {
       title,
-      status: "todo",
       description: newTaskDescription.trim() || "",
       priority: newTaskPriority || DEFAULT_PRIORITY,
-      tagIds: newTaskTagIds.length > 0 ? newTaskTagIds : undefined,
+      tagIds: [...newTaskTagIds],
+    };
+  };
+
+  const submitTaskDraft = async (
+    draft: NewTaskDraft,
+    cursorAutomation?: {
+      ref: CursorAgentRef;
+      model: CursorAgentModel;
+      additionalPrompt?: string;
+    },
+  ) => {
+    await createTask({
+      title: draft.title,
+      status: "todo",
+      description: draft.description,
+      priority: draft.priority,
+      tagIds: draft.tagIds.length > 0 ? draft.tagIds : undefined,
+      cursorAutomation,
+    });
+
+    resetNewTaskForm();
+    resetCursorAutomationForm();
+    setPendingCursorTask(null);
+    setAddTaskDialogOpen(false);
+    setCursorAutomationDialogOpen(false);
+  };
+
+  const handleAddTask = async () => {
+    const draft = buildNewTaskDraft();
+    if (!draft) return;
+
+    if (shouldOfferCursorAutomation(draft.tagIds, tagsById)) {
+      setPendingCursorTask(draft);
+      resetCursorAutomationForm();
+      setAddTaskDialogOpen(false);
+      setCursorAutomationDialogOpen(true);
+      return;
+    }
+
+    await submitTaskDraft(draft);
+  };
+
+  const handleBackFromCursorAutomation = () => {
+    if (!pendingCursorTask) return;
+    applyTaskDraft(pendingCursorTask);
+    setCursorAutomationDialogOpen(false);
+    setAddTaskDialogOpen(true);
+  };
+
+  const handleAddTaskWithoutCursorAutomation = async () => {
+    if (!pendingCursorTask) return;
+    await submitTaskDraft(pendingCursorTask);
+  };
+
+  const handleConfirmCursorAutomation = async () => {
+    if (!pendingCursorTask) return;
+    await submitTaskDraft(pendingCursorTask, {
+      ref: cursorAutomationRef,
+      model: cursorAutomationModel,
+      additionalPrompt: cursorAutomationPrompt.trim() || undefined,
     });
   };
 
@@ -398,10 +532,7 @@ export function KanbanBoard() {
         onOpenChange={(open) => {
           setAddTaskDialogOpen(open);
           if (!open) {
-            setNewTaskTitle("");
-            setNewTaskDescription("");
-            setNewTaskPriority(DEFAULT_PRIORITY);
-            setNewTaskTagIds([]);
+            resetNewTaskForm();
           }
         }}
       >
@@ -507,6 +638,94 @@ export function KanbanBoard() {
               Cancel
             </Button>
             <Button onClick={handleAddTask}>Add task</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={cursorAutomationDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && pendingCursorTask) {
+            applyTaskDraft(pendingCursorTask);
+            setAddTaskDialogOpen(true);
+          }
+          setCursorAutomationDialogOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Trigger Cursor automation?</DialogTitle>
+            <DialogDescription>
+              This task is in the Colabs AI group. Choose whether to launch a Cursor background
+              agent now or just add the task without triggering anything.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">Task</p>
+              <p className="mt-1 text-sm font-medium text-slate-900">
+                {pendingCursorTask?.title ?? ""}
+              </p>
+              {pendingCursorTask?.description ? (
+                <p className="mt-1 text-sm text-slate-600">{pendingCursorTask.description}</p>
+              ) : null}
+            </div>
+            <div className="grid gap-2">
+              <Label>Branch</Label>
+              <Select
+                value={cursorAutomationRef}
+                onValueChange={(value) => setCursorAutomationRef(value as CursorAgentRef)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  {CURSOR_REF_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Model</Label>
+              <Select
+                value={cursorAutomationModel}
+                onValueChange={(value) => setCursorAutomationModel(value as CursorAgentModel)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select model" />
+                </SelectTrigger>
+                <SelectContent className="bg-white">
+                  {CURSOR_MODEL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="cursor-additional-prompt">Additional prompt</Label>
+              <textarea
+                id="cursor-additional-prompt"
+                value={cursorAutomationPrompt}
+                onChange={(e) => setCursorAutomationPrompt(e.target.value)}
+                placeholder="Optional extra instructions for Cursor..."
+                rows={4}
+                className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm transition-all placeholder:text-slate-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary resize-y"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={handleBackFromCursorAutomation}>
+              Back
+            </Button>
+            <Button variant="outline" onClick={handleAddTaskWithoutCursorAutomation}>
+              Add without trigger
+            </Button>
+            <Button onClick={handleConfirmCursorAutomation}>Add and trigger Cursor</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -883,9 +1102,10 @@ function KanbanColumn({
                                       !shouldKeepSourceSpace &&
                                       activeDrag?.sourceStatus === column.id &&
                                       activeDrag.sourceGroupId !== group.id;
-                                    const draggableStyle = shouldKeepSourceSpace
+                                    const baseStyle = provided.draggableProps.style;
+                                    const draggableStyle: React.CSSProperties = shouldKeepSourceSpace
                                       ? {
-                                          ...provided.draggableProps.style,
+                                          ...baseStyle,
                                           position: "static",
                                           top: "auto",
                                           left: "auto",
@@ -896,11 +1116,11 @@ function KanbanColumn({
                                         }
                                       : shouldFreezeInPlace
                                         ? {
-                                            ...provided.draggableProps.style,
+                                            ...baseStyle,
                                             transform: "none",
                                             transition: "none",
                                           }
-                                        : provided.draggableProps.style;
+                                        : (baseStyle as React.CSSProperties);
 
                                     return (
                                       <div

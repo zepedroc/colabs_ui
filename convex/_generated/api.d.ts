@@ -14,6 +14,8 @@ import type * as benchmark from "../benchmark.js";
 import type * as benchmarkLogic from "../benchmarkLogic.js";
 import type * as chat from "../chat.js";
 import type * as council from "../council.js";
+import type * as cursorAutomation from "../cursorAutomation.js";
+import type * as cursorAutomationConfig from "../cursorAutomationConfig.js";
 import type * as http from "../http.js";
 import type * as lifeManagement from "../lifeManagement.js";
 import type * as openrouter from "../openrouter.js";
@@ -33,6 +35,8 @@ declare const fullApi: ApiFromModules<{
   benchmarkLogic: typeof benchmarkLogic;
   chat: typeof chat;
   council: typeof council;
+  cursorAutomation: typeof cursorAutomation;
+  cursorAutomationConfig: typeof cursorAutomationConfig;
   http: typeof http;
   lifeManagement: typeof lifeManagement;
   openrouter: typeof openrouter;
