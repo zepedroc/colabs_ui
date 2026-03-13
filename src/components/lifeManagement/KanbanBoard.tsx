@@ -507,7 +507,7 @@ export function KanbanBoard() {
   return (
     <>
       <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
+        <div className="flex gap-4 w-full min-w-0 pb-4">
           {COLUMNS.map((column) => (
             <KanbanColumn
               key={column.id}
@@ -989,7 +989,7 @@ function KanbanColumn({
   );
 
   return (
-    <div className="shrink-0 w-80 flex flex-col">
+    <div className="flex-1 min-w-0 flex flex-col">
       <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-700 px-1">
         {column.title}
       </h3>
