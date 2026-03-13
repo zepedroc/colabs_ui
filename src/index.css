@@ -3,9 +3,9 @@
 @plugin '@tailwindcss/typography';
 
 @theme {
-  --color-primary: #0d9488;
-  --color-primary-hover: #0f766e;
-  --color-primary-muted: #ccfbf1;
+  --color-primary: #d4af37;
+  --color-primary-hover: #b8860b;
+  --color-primary-muted: #fef9c3;
   --color-primary-foreground: #ffffff;
 
   --color-secondary: #64748b;
@@ -79,14 +79,14 @@ body {
 .prose {
   --tw-prose-body: #475569;
   --tw-prose-headings: #0f172a;
-  --tw-prose-links: #0d9488;
+  --tw-prose-links: #d4af37;
 }
 
 /* Agent message prose - code blocks, lists, blockquotes */
 .prose-agent {
   --tw-prose-body: inherit;
   --tw-prose-headings: inherit;
-  --tw-prose-links: #0d9488;
+  --tw-prose-links: #d4af37;
   --tw-prose-code: inherit;
   --tw-prose-pre-bg: #1e293b;
   --tw-prose-pre-border: #334155;
