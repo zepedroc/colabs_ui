@@ -244,6 +244,7 @@ export function KanbanBoard() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [collapsingGroups, setCollapsingGroups] = useState<Record<string, boolean>>({});
   const collapseTimeoutRef = useRef<Record<string, number>>({});
+  const [newlyAddedTaskIds, setNewlyAddedTaskIds] = useState<Set<Id<"lifeManagementTasks">>>(new Set());
 
   const tasks = useQuery(api.lifeManagement.listTasks) ?? [];
   const tags = useQuery(api.lifeManagement.listTags) ?? [];
@@ -358,7 +359,7 @@ export function KanbanBoard() {
       additionalPrompt?: string;
     },
   ) => {
-    await createTask({
+    const newTaskId = await createTask({
       title: draft.title,
       status: "todo",
       description: draft.description,
@@ -366,6 +367,22 @@ export function KanbanBoard() {
       tagIds: draft.tagIds.length > 0 ? draft.tagIds : undefined,
       cursorAutomation,
     });
+
+    if (newTaskId) {
+      setNewlyAddedTaskIds((prev) => {
+        const next = new Set(prev);
+        next.add(newTaskId);
+        return next;
+      });
+
+      setTimeout(() => {
+        setNewlyAddedTaskIds((prev) => {
+          const next = new Set(prev);
+          next.delete(newTaskId);
+          return next;
+        });
+      }, 2000);
+    }
 
     resetNewTaskForm();
     resetCursorAutomationForm();
@@ -518,6 +535,7 @@ export function KanbanBoard() {
               collapsedGroups={collapsedGroups}
               collapsingGroups={collapsingGroups}
               canAddTasks={column.id === "todo"}
+              newlyAddedTaskIds={newlyAddedTaskIds}
               onOpenAddTaskDialog={() => setAddTaskDialogOpen(true)}
               onDeleteTask={handleDelete}
               onOpenEditDialog={handleStartEdit}
@@ -895,6 +913,7 @@ function KanbanColumn({
   collapsedGroups,
   collapsingGroups,
   canAddTasks,
+  newlyAddedTaskIds,
   onOpenAddTaskDialog,
   onDeleteTask,
   onOpenEditDialog,
@@ -907,6 +926,7 @@ function KanbanColumn({
   collapsedGroups: Record<string, boolean>;
   collapsingGroups: Record<string, boolean>;
   canAddTasks: boolean;
+  newlyAddedTaskIds: Set<Id<"lifeManagementTasks">>;
   onOpenAddTaskDialog: () => void;
   onDeleteTask: (id: Id<"lifeManagementTasks">) => void;
   onOpenEditDialog: (task: Doc<"lifeManagementTasks">) => void;
@@ -927,12 +947,15 @@ function KanbanColumn({
     return new Map(visibleTasks.map((task, index) => [task._id, index] as const));
   }, [visibleTasks]);
 
-  const renderTaskCard = (task: Doc<"lifeManagementTasks">, isDragging: boolean) => (
+  const renderTaskCard = (task: Doc<"lifeManagementTasks">, isDragging: boolean) => {
+    const isNew = newlyAddedTaskIds.has(task._id);
+    return (
     <Card
       className={cn(
         "cursor-grab rounded-2xl border border-white/80 bg-white/92 shadow-sm transition-[transform,box-shadow,border-color] active:cursor-grabbing hover:border-slate-300 hover:shadow-md",
         isDragging && "scale-[1.02] shadow-xl ring-2 ring-primary/15",
         isDone && "border-emerald-200/80 bg-white/88",
+        isNew && "animate-task-landed",
       )}
     >
       <CardContent className="p-3 flex flex-col gap-2">
@@ -987,6 +1010,7 @@ function KanbanColumn({
       </CardContent>
     </Card>
   );
+  };
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">

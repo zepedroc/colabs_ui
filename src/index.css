@@ -118,3 +118,39 @@ body {
 .prose-agent p:last-child {
   @apply mb-0;
 }
+
+@keyframes task-landed-glow {
+  0% {
+    transform: scale(0.92);
+    box-shadow: 0 0 0 0 rgba(13, 148, 136, 0.8);
+    border-color: var(--color-primary);
+  }
+  15% {
+    transform: scale(1.03);
+    box-shadow: 0 0 0 8px rgba(13, 148, 136, 0);
+    border-color: var(--color-primary);
+  }
+  30% {
+    transform: scale(0.98);
+  }
+  50% {
+    transform: scale(1);
+    border-color: var(--color-primary);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes task-landed-bg {
+  0% { background-color: #f0fdfa; }
+  50% { background-color: #f0fdfa; }
+  100% { background-color: rgba(255, 255, 255, 0.92); }
+}
+
+.animate-task-landed {
+  animation: task-landed-glow 2s cubic-bezier(0.2, 0.8, 0.2, 1),
+             task-landed-bg 2s ease-out;
+  z-index: 10;
+  position: relative;
+}
