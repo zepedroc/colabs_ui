@@ -4,12 +4,20 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ModelSelector } from "@/components/ModelSelector";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+
+const DEFAULT_BENCHMARK_MODELS: [string, string, string] = [
+  "stepfun/step-3.5-flash:free",
+  "arcee-ai/trinity-large-preview:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
+];
 
 export function BenchmarkPage() {
   const [benchmarkName, setBenchmarkName] = useState("");
   const [filePath, setFilePath] = useState("benchmarks/questions.json");
+  const [selectedModels, setSelectedModels] = useState<[string, string, string]>(DEFAULT_BENCHMARK_MODELS);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedBenchmarkId, setSelectedBenchmarkId] = useState<Id<"benchmarkRuns"> | null>(null);
@@ -31,6 +39,7 @@ export function BenchmarkPage() {
       const benchmarkId = await startBenchmark({
         name: benchmarkName.trim(),
         filePath: filePath.trim() || undefined,
+        models: selectedModels,
       });
       setSelectedBenchmarkId(benchmarkId);
       setBenchmarkName("");
@@ -62,6 +71,11 @@ export function BenchmarkPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleStartBenchmark} className="flex flex-col gap-3">
+                <ModelSelector
+                  value={selectedModels}
+                  onChange={setSelectedModels}
+                  disabled={isRunning}
+                />
                 <Input
                   type="text"
                   value={benchmarkName}

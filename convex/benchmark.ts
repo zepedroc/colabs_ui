@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { getCouncilModels } from "./aiConfig";
+import { getDefaultModels } from "./models";
 import { runBenchmarkStream } from "./benchmarkLogic";
 import benchmarkQuestions from "./benchmarks/questions.json";
 import { getOpenRouterApiKey } from "./openrouterConfig";
@@ -28,10 +28,13 @@ const benchmarkModelResult = v.object({
   finalParseError: v.optional(v.union(v.string(), v.null())),
 });
 
+const modelsValidator = v.array(v.string());
+
 export const startBenchmark = mutation({
   args: {
     name: v.string(),
     filePath: v.optional(v.string()),
+    models: v.optional(modelsValidator),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -47,10 +50,16 @@ export const startBenchmark = mutation({
       filePath: args.filePath,
     });
 
+    const models =
+      args.models && args.models.length >= 3
+        ? args.models.slice(0, 3)
+        : getDefaultModels();
+
     await ctx.scheduler.runAfter(0, internal.benchmark.runBenchmark, {
       benchmarkId,
       userId,
       filePath: args.filePath,
+      models,
     });
 
     return benchmarkId;
@@ -188,11 +197,12 @@ export const runBenchmark = internalAction({
     benchmarkId: v.id("benchmarkRuns"),
     userId: v.id("users"),
     filePath: v.optional(v.string()),
+    models: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     try {
       const apiKey = getOpenRouterApiKey();
-      const models = getCouncilModels();
+      const models = args.models;
 
       const cases = benchmarkQuestions as Array<{
         question: string;

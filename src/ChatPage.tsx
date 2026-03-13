@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ModelSelector } from "@/components/ModelSelector";
 import { api } from "../convex/_generated/api";
 import type { Doc } from "../convex/_generated/dataModel";
 
@@ -127,11 +128,18 @@ function isFinalSameAsLastRound(
   return true;
 }
 
+const DEFAULT_COUNCIL_MODELS: [string, string, string] = [
+  "stepfun/step-3.5-flash:free",
+  "arcee-ai/trinity-large-preview:free",
+  "nvidia/nemotron-3-nano-30b-a3b:free",
+];
+
 export function ChatPage() {
   const [message, setMessage] = useState("");
   const [sessionId, setSessionId] = useState(() => `session-${Date.now()}-${Math.random()}`);
   const [rounds, setRounds] = useState(3);
   const [mode, setMode] = useState<CouncilMode>("parallel");
+  const [selectedModels, setSelectedModels] = useState<[string, string, string]>(DEFAULT_COUNCIL_MODELS);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -161,6 +169,7 @@ export function ChatPage() {
         sessionId,
         rounds,
         mode,
+        models: selectedModels,
       });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "Failed to send message.");
@@ -340,6 +349,11 @@ export function ChatPage() {
           >
             New chat
           </Button>
+          <ModelSelector
+            value={selectedModels}
+            onChange={setSelectedModels}
+            disabled={isSubmitting}
+          />
           <Select
             value={mode}
             onValueChange={(v) => setMode(v as CouncilMode)}

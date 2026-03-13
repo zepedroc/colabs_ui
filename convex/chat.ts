@@ -3,11 +3,13 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { getCouncilModels } from "./aiConfig";
+import { getDefaultModels } from "./models";
 import { queryCouncilStream } from "./council";
 import { getOpenRouterApiKey } from "./openrouterConfig";
 
 const councilMode = v.union(v.literal("parallel"), v.literal("conversation"));
+
+const modelsValidator = v.array(v.string());
 
 export const sendMessage = mutation({
   args: {
@@ -15,6 +17,7 @@ export const sendMessage = mutation({
     sessionId: v.string(),
     rounds: v.number(),
     mode: councilMode,
+    models: v.optional(modelsValidator),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -31,12 +34,18 @@ export const sendMessage = mutation({
       source: "user",
     });
 
+    const models =
+      args.models && args.models.length >= 3
+        ? args.models.slice(0, 3)
+        : getDefaultModels();
+
     await ctx.scheduler.runAfter(0, internal.chat.runCouncilQuery, {
       userId,
       sessionId: args.sessionId,
       query: args.content,
       rounds: args.rounds,
       mode: args.mode,
+      models,
     });
 
     return null;
@@ -95,11 +104,12 @@ export const runCouncilQuery = internalAction({
     query: v.string(),
     rounds: v.number(),
     mode: councilMode,
+    models: v.array(v.string()),
   },
   handler: async (ctx, args) => {
     try {
       const apiKey = getOpenRouterApiKey();
-      const models = getCouncilModels();
+      const models = args.models;
 
       for await (const line of queryCouncilStream(
         apiKey,
