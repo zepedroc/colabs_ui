@@ -1,6 +1,9 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 
 const taskStatus = v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done"));
 
@@ -10,8 +13,41 @@ const taskPriority = v.union(
   v.literal("high"),
   v.literal("urgent"),
 );
+const cursorAgentRef = v.union(v.literal("dev"), v.literal("main"));
+const cursorAgentModel = v.union(
+  v.literal("composer-1.5"),
+  v.literal("claude-4.6-opus-high-thinking"),
+  v.literal("gemini-3.1-pro-preview"),
+  v.literal("gpt-5.4-high"),
+  v.literal("gpt-5.3-codex-high"),
+);
 
 const PRIORITY_ORDER = { low: 0, medium: 1, high: 2, urgent: 3 } as const;
+const CURSOR_AUTOMATION_GROUP_NAME = "colabs ai";
+
+function normalizeTagName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+async function getOwnedTagsInOrder(
+  ctx: MutationCtx,
+  userId: Id<"users">,
+  tagIds?: Id<"lifeManagementTags">[],
+): Promise<Array<Doc<"lifeManagementTags">>> {
+  if (!tagIds?.length) {
+    return [];
+  }
+
+  const tags = await Promise.all(tagIds.map((tagId) => ctx.db.get(tagId)));
+  return tags.filter((tag): tag is Doc<"lifeManagementTags"> => Boolean(tag && tag.userId === userId));
+}
+
+function shouldLaunchCursorAutomation(
+  status: "todo" | "in_progress" | "done",
+  tags: Array<Doc<"lifeManagementTags">>,
+): boolean {
+  return status === "todo" && normalizeTagName(tags[0]?.name ?? "") === CURSOR_AUTOMATION_GROUP_NAME;
+}
 
 // --- Tags ---
 
@@ -107,7 +143,15 @@ export const createTask = mutation({
     description: v.optional(v.string()),
     priority: v.optional(taskPriority),
     tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
+    cursorAutomation: v.optional(
+      v.object({
+        ref: cursorAgentRef,
+        model: cursorAgentModel,
+        additionalPrompt: v.optional(v.string()),
+      }),
+    ),
   },
+  returns: v.id("lifeManagementTasks"),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) {
@@ -120,8 +164,9 @@ export const createTask = mutation({
       .collect();
 
     const order = existingTasks.length > 0 ? Math.max(...existingTasks.map((t) => t.order)) + 1 : 0;
+    const ownedTags = await getOwnedTagsInOrder(ctx, userId, args.tagIds);
 
-    return await ctx.db.insert("lifeManagementTasks", {
+    const taskId = await ctx.db.insert("lifeManagementTasks", {
       userId,
       title: args.title,
       status: args.status,
@@ -130,6 +175,24 @@ export const createTask = mutation({
       priority: args.priority ?? "low",
       tagIds: args.tagIds,
     });
+
+    if (args.cursorAutomation && !shouldLaunchCursorAutomation(args.status, ownedTags)) {
+      throw new Error(
+        "Cursor automation can only be launched for To Do tasks in the Colabs AI group.",
+      );
+    }
+
+    if (args.cursorAutomation) {
+      await ctx.scheduler.runAfter(0, internal.cursorAutomation.launchTaskAgent, {
+        title: args.title,
+        description: args.description?.trim() || undefined,
+        ref: args.cursorAutomation.ref,
+        model: args.cursorAutomation.model,
+        additionalPrompt: args.cursorAutomation.additionalPrompt?.trim() || undefined,
+      });
+    }
+
+    return taskId;
   },
 });
 
@@ -268,6 +331,7 @@ export const listIdeas = query({
 export const addIdea = mutation({
   args: {
     content: v.string(),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -289,7 +353,36 @@ export const addIdea = mutation({
       userId,
       content: args.content,
       order,
+      tagIds: args.tagIds?.length ? args.tagIds : undefined,
     });
+  },
+});
+
+export const updateIdea = mutation({
+  args: {
+    ideaId: v.id("lifeManagementIdeas"),
+    content: v.optional(v.string()),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const idea = await ctx.db.get(args.ideaId);
+    if (!idea || idea.userId !== userId) {
+      throw new Error("Idea not found");
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (args.content !== undefined) updates.content = args.content;
+    if (args.tagIds !== undefined) updates.tagIds = args.tagIds?.length ? args.tagIds : undefined;
+
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(args.ideaId, updates);
+    }
+    return null;
   },
 });
 
@@ -354,6 +447,7 @@ export const listPains = query({
 export const addPain = mutation({
   args: {
     content: v.string(),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -375,7 +469,36 @@ export const addPain = mutation({
       userId,
       content: args.content,
       order,
+      tagIds: args.tagIds?.length ? args.tagIds : undefined,
     });
+  },
+});
+
+export const updatePain = mutation({
+  args: {
+    painId: v.id("lifeManagementPains"),
+    content: v.optional(v.string()),
+    tagIds: v.optional(v.array(v.id("lifeManagementTags"))),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    const pain = await ctx.db.get(args.painId);
+    if (!pain || pain.userId !== userId) {
+      throw new Error("Pain not found");
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (args.content !== undefined) updates.content = args.content;
+    if (args.tagIds !== undefined) updates.tagIds = args.tagIds?.length ? args.tagIds : undefined;
+
+    if (Object.keys(updates).length > 0) {
+      await ctx.db.patch(args.painId, updates);
+    }
+    return null;
   },
 });
 

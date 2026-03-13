@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 
 export function SignInForm() {
   const { signIn } = useAuthActions();
@@ -65,14 +64,6 @@ export function SignInForm() {
           </Button>
         </div>
       </form>
-      <div className="flex items-center justify-center my-4 gap-4">
-        <Separator className="flex-1" />
-        <span className="text-slate-500 text-sm">or</span>
-        <Separator className="flex-1" />
-      </div>
-      <Button variant="outline" className="w-full" onClick={() => void signIn("anonymous")}>
-        Sign in anonymously
-      </Button>
     </div>
   );
 }
