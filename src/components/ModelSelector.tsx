@@ -83,11 +83,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
         current[i] = freeIds.has(fallback) ? fallback : (models[i]?.id ?? "");
       }
     }
-    if (
-      current[0] !== selected[0] ||
-      current[1] !== selected[1] ||
-      current[2] !== selected[2]
-    ) {
+    if (current[0] !== selected[0] || current[1] !== selected[1] || current[2] !== selected[2]) {
       onChange(current as [string, string, string]);
     }
   }, [models, selected, onChange]);
@@ -109,13 +105,12 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const selectedModels = value
-    .map((id) => models.find((m) => m.id === id))
-    .filter(Boolean) as { id: string; name: string }[];
+  const selectedModels = value.map((id) => models.find((m) => m.id === id)).filter(Boolean) as {
+    id: string;
+    name: string;
+  }[];
   const displayText =
-    selectedModels.length === 3
-      ? selectedModels.map((m) => m.name).join(", ")
-      : "Select 3 models";
+    selectedModels.length === 3 ? selectedModels.map((m) => m.name).join(", ") : "Select 3 models";
 
   if (loading) {
     return (

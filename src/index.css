@@ -118,6 +118,19 @@ body {
 .prose-agent p:last-child {
   @apply mb-0;
 }
+.prose-agent table {
+  @apply w-full border-collapse my-3 text-sm;
+}
+.prose-agent th,
+.prose-agent td {
+  @apply border border-slate-300 px-3 py-2 text-left;
+}
+.prose-agent th {
+  @apply bg-slate-100 font-semibold text-slate-800;
+}
+.prose-agent tr:nth-child(even) {
+  @apply bg-slate-50/50;
+}
 
 @keyframes task-landed-glow {
   0% {

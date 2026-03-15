@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -346,7 +347,7 @@ export function ChatPage() {
                               <div
                                 className={`text-sm prose prose-sm prose-agent max-w-none ${colors.accent} prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0`}
                               >
-                                <ReactMarkdown>{body}</ReactMarkdown>
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
                               </div>
                             </CardContent>
                           </Card>
@@ -383,7 +384,7 @@ export function ChatPage() {
                         </span>
                       </div>
                       <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                       </div>
                     </CardContent>
                   </Card>

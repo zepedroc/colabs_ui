@@ -22,15 +22,27 @@ export const getFreeModels = action({
       );
     }
 
-    const data = (await response.json()) as { data?: Array<{ id: string; name: string; pricing?: { prompt?: string; completion?: string } }> };
+    const data = (await response.json()) as {
+      data?: Array<{
+        id: string;
+        name: string;
+        created?: number;
+        pricing?: { prompt?: string; completion?: string };
+      }>;
+    };
     const models = data.data ?? [];
 
-    const free = models.filter(
-      (m) =>
-        m.pricing?.prompt === "0" && m.pricing?.completion === "0" && m.id && m.name,
-    );
+    const free = models
+      .filter(
+        (m) =>
+          m.pricing?.prompt === "0" &&
+          m.pricing?.completion === "0" &&
+          m.id &&
+          m.name,
+      )
+      .sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
 
-    return free.map((m) => ({ id: m.id, name: m.name })).sort((a, b) => a.name.localeCompare(b.name));
+    return free.map((m) => ({ id: m.id, name: m.name }));
   },
 });
 
