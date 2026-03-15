@@ -241,15 +241,76 @@ export function ChatPage() {
       <div className="flex-1 overflow-y-auto p-6 pb-40 min-h-0">
         <div className="max-w-6xl mx-auto space-y-6">
           {messages.length === 0 ? (
-            <Card>
-              <CardHeader className="text-center">
-                <CardTitle className="text-lg">Start a conversation with the AI council</CardTitle>
-                <CardDescription>
-                  Convex stores messages and orchestrates AI council calls on your behalf.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="text-center text-4xl pb-6">🤖</CardContent>
-            </Card>
+            <div className="relative flex flex-col items-center justify-center min-h-[60vh] py-12 px-4 overflow-hidden">
+              {/* Subtle background */}
+              <div
+                className="absolute inset-0 -z-10 opacity-[0.4]"
+                style={{
+                  backgroundImage: `radial-gradient(circle at 50% 30%, rgba(13, 148, 136, 0.08) 0%, transparent 50%),
+                    radial-gradient(circle at 80% 70%, rgba(14, 165, 233, 0.06) 0%, transparent 40%),
+                    radial-gradient(circle at 20% 80%, rgba(245, 158, 11, 0.05) 0%, transparent 40%)`,
+                }}
+              />
+              <div
+                className="absolute inset-0 -z-10 opacity-30"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2394a3b8' fill-opacity='0.08'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                }}
+              />
+              {/* Floating council orbs */}
+              <div className="relative mb-12">
+                <div
+                  className="absolute inset-0 rounded-full bg-gradient-to-br from-teal-400/20 to-sky-400/20 blur-3xl -z-10"
+                  style={{ width: 200, height: 200, left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}
+                />
+                <div className="flex items-center justify-center gap-6">
+                  <div
+                    className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-400 to-sky-600 shadow-lg shadow-sky-400/30 animate-float-orb"
+                    style={{ animationDelay: "0s" }}
+                  />
+                  <div
+                    className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-400 to-teal-600 shadow-lg shadow-teal-400/30 animate-float-orb"
+                    style={{ animationDelay: "0.4s" }}
+                  />
+                  <div
+                    className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 shadow-lg shadow-amber-400/30 animate-float-orb"
+                    style={{ animationDelay: "0.8s" }}
+                  />
+                </div>
+              </div>
+
+              {/* Headline */}
+              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight text-center mb-3 animate-fade-in-up [animation-fill-mode:forwards] opacity-0">
+                Meet your AI council
+              </h2>
+              <p className="text-slate-600 text-center max-w-md mb-10 animate-fade-in-up [animation-delay:0.1s] [animation-fill-mode:forwards] opacity-0">
+                Three models collaborate on every question—compare perspectives, debate ideas, and get richer answers.
+              </p>
+
+              {/* Suggested prompts */}
+              <div className="flex flex-wrap justify-center gap-2 max-w-xl animate-fade-in-up [animation-delay:0.2s] [animation-fill-mode:forwards] opacity-0">
+                {[
+                  "Explain quantum entanglement in simple terms",
+                  "Compare React vs Vue for a new project",
+                  "Suggest a 3-day itinerary for Lisbon",
+                  "What are the pros and cons of remote work?",
+                ].map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setMessage(prompt)}
+                    className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-white/80 hover:bg-white border border-slate-200/80 hover:border-teal-300/60 hover:shadow-md hover:shadow-teal-500/10 transition-all duration-200 shadow-sm"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Subtle hint */}
+              <p className="text-slate-400 text-xs mt-8 animate-fade-in-up [animation-delay:0.3s] [animation-fill-mode:forwards] opacity-0">
+                Or type your own question below
+              </p>
+            </div>
           ) : (
             <>
             {filteredGroups.map((group, idx) => {
