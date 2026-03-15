@@ -1,8 +1,9 @@
 import { useAction } from "convex/react";
-import { ChevronDown, Check } from "lucide-react";
+import { Ban, ChevronDown, Check, Star } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { api } from "../../convex/_generated/api";
+import { useModelPreferences } from "@/hooks/useModelPreferences";
 import { cn } from "@/lib/utils";
 
 const DEFAULT_MODELS = [
@@ -28,6 +29,7 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const getFreeModels = useAction(api.models.getFreeModels);
+  const { favorites, deprecated, toggleFavorite, toggleDeprecated } = useModelPreferences();
 
   useEffect(() => {
     let cancelled = false;
@@ -148,31 +150,78 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
         />
       </Button>
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 max-h-64 min-w-[220px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+        <div className="absolute bottom-full left-0 z-50 mb-1 max-h-64 min-w-[280px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {models.map((m) => {
-            const isSelected = value.includes(m.id);
-            return (
-              <button
-                key={m.id}
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-slate-100",
-                  isSelected && "bg-primary/5",
-                )}
-                onClick={() => handleToggle(m.id)}
-              >
-                <span
-                  className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                    isSelected ? "border-primary bg-primary text-white" : "border-slate-300",
-                  )}
-                >
-                  {isSelected ? <Check className="h-3 w-3" /> : null}
-                </span>
-                <span className="truncate">{m.name}</span>
-              </button>
-            );
-          })}
+              const isSelected = value.includes(m.id);
+              const isFavorite = favorites.has(m.id);
+              const isDeprecated = deprecated.has(m.id);
+              return (
+                <div key={m.id} className="group relative">
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-slate-100",
+                      isSelected && "bg-primary/5",
+                      isFavorite && "bg-amber-50/80",
+                      isDeprecated && "opacity-60",
+                    )}
+                    onClick={() => handleToggle(m.id)}
+                  >
+                    <span
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                        isSelected ? "border-primary bg-primary text-white" : "border-slate-300",
+                      )}
+                    >
+                      {isSelected ? <Check className="h-3 w-3" /> : null}
+                    </span>
+                    <span
+                      className={cn(
+                        "truncate flex-1",
+                        isDeprecated && "line-through text-slate-500",
+                        isFavorite && "text-amber-800 font-medium",
+                      )}
+                    >
+                      {m.name}
+                    </span>
+                  </button>
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 shadow-md opacity-0 transition-opacity group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto">
+                    <button
+                      type="button"
+                      title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+                      className={cn(
+                        "rounded p-1 transition-colors hover:bg-amber-100",
+                        isFavorite && "text-amber-600",
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleFavorite(m.id);
+                      }}
+                    >
+                      <Star
+                        className={cn("h-3.5 w-3.5", isFavorite && "fill-amber-500")}
+                      />
+                    </button>
+                    <button
+                      type="button"
+                      title={isDeprecated ? "Remove deprecated" : "Mark as deprecated"}
+                      className={cn(
+                        "rounded p-1 transition-colors hover:bg-slate-100",
+                        isDeprecated && "text-slate-600",
+                      )}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleDeprecated(m.id);
+                      }}
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
         </div>
       )}
     </div>
