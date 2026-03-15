@@ -16,13 +16,15 @@ export type ModelSelectorProps = {
   value: [string, string, string];
   onChange: (models: [string, string, string]) => void;
   disabled?: boolean;
+  /** When "down", dropdown opens below the button. Default "up" opens above. */
+  dropdownPosition?: "up" | "down";
 };
 
 /**
  * Multi-select for exactly 3 free OpenRouter models.
  * Ensures 3 distinct models are always selected.
  */
-export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps) {
+export function ModelSelector({ value, onChange, disabled, dropdownPosition = "up" }: ModelSelectorProps) {
   const [models, setModels] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -150,7 +152,12 @@ export function ModelSelector({ value, onChange, disabled }: ModelSelectorProps)
         />
       </Button>
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-1 max-h-64 min-w-[280px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+        <div
+          className={cn(
+            "absolute left-0 z-50 max-h-64 min-w-[280px] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg",
+            dropdownPosition === "down" ? "top-full mt-1" : "bottom-full mb-1",
+          )}
+        >
           {models.map((m) => {
               const isSelected = value.includes(m.id);
               const isFavorite = favorites.has(m.id);

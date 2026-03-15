@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "convex/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,13 +15,23 @@ const DEFAULT_BENCHMARK_MODELS: [string, string, string] = [
 ];
 
 export function BenchmarkPage() {
-  const [benchmarkName, setBenchmarkName] = useState("");
-  const [filePath, setFilePath] = useState("benchmarks/questions.json");
-  const [selectedModels, setSelectedModels] = useState<[string, string, string]>(DEFAULT_BENCHMARK_MODELS);
+  const [numQuestions, setNumQuestions] = useState(10);
+  const [rounds, setRounds] = useState(2);
+  const [selectedModels, setSelectedModels] =
+    useState<[string, string, string]>(DEFAULT_BENCHMARK_MODELS);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedBenchmarkId, setSelectedBenchmarkId] = useState<Id<"benchmarkRuns"> | null>(null);
+  const [expandedResponses, setExpandedResponses] = useState<Set<string>>(new Set());
+  const totalQuestions = useQuery(api.benchmark.getTotalQuestions) ?? 10;
   const benchmarks = useQuery(api.benchmark.getBenchmarks) || [];
+
+  useEffect(() => {
+    if (totalQuestions > 0 && numQuestions > totalQuestions) {
+      setNumQuestions(totalQuestions);
+    }
+  }, [totalQuestions, numQuestions]);
+
   const benchmarkCaseResults = useQuery(
     api.benchmark.getBenchmarkCaseResults,
     selectedBenchmarkId ? { benchmarkId: selectedBenchmarkId } : "skip",
@@ -30,19 +40,18 @@ export function BenchmarkPage() {
 
   const handleStartBenchmark = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!benchmarkName.trim() || isRunning) return;
+    if (isRunning) return;
 
     setIsRunning(true);
     setError(null);
 
     try {
-      const benchmarkId = await startBenchmark({
-        name: benchmarkName.trim(),
-        filePath: filePath.trim() || undefined,
+      await startBenchmark({
         models: selectedModels,
+        numQuestions,
+        rounds,
       });
-      setSelectedBenchmarkId(benchmarkId);
-      setBenchmarkName("");
+      setSelectedBenchmarkId(null);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Failed to run benchmark.");
     } finally {
@@ -50,12 +59,40 @@ export function BenchmarkPage() {
     }
   };
 
+  const [now, setNow] = useState(Date.now());
+  const hasRunningBenchmark = benchmarks.some((b) => b.status === "running");
+  const displayedBenchmarks = hasRunningBenchmark
+    ? benchmarks.filter((b) => b.status === "running")
+    : benchmarks;
+
+  useEffect(() => {
+    if (!hasRunningBenchmark) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [hasRunningBenchmark]);
+
   const formatDuration = (startTime: number, endTime?: number) => {
-    const duration = (endTime || Date.now()) - startTime;
-    return `${(duration / 1000).toFixed(1)}s`;
+    const end = endTime ?? now;
+    const durationMs = end - startTime;
+    const totalSeconds = durationMs / 1000;
+    if (totalSeconds >= 60) {
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = Math.floor(totalSeconds % 60);
+      return `${minutes}m ${seconds}s`;
+    }
+    return `${totalSeconds.toFixed(1)}s`;
   };
 
   const formatPercentage = (value: number) => `${(value * 100).toFixed(1)}%`;
+
+  const toggleResponseExpanded = (key: string) => {
+    setExpandedResponses((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -75,21 +112,45 @@ export function BenchmarkPage() {
                   value={selectedModels}
                   onChange={setSelectedModels}
                   disabled={isRunning}
+                  dropdownPosition="down"
                 />
-                <Input
-                  type="text"
-                  value={benchmarkName}
-                  onChange={(e) => setBenchmarkName(e.target.value)}
-                  placeholder="Benchmark run name..."
-                  className="flex-1"
-                />
-                <Input
-                  type="text"
-                  value={filePath}
-                  onChange={(e) => setFilePath(e.target.value)}
-                  placeholder="benchmarks/questions.json"
-                  className="flex-1"
-                />
+                <div className="flex flex-wrap gap-4 items-center">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="numQuestions" className="text-sm font-medium">
+                      Questions
+                    </label>
+                    <Input
+                      id="numQuestions"
+                      type="number"
+                      min={1}
+                      max={totalQuestions}
+                      value={numQuestions}
+                      onChange={(e) =>
+                        setNumQuestions(
+                          Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), totalQuestions),
+                        )
+                      }
+                      className="w-20"
+                    />
+                    <span className="text-sm text-slate-500">/ {totalQuestions}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="rounds" className="text-sm font-medium">
+                      Rounds
+                    </label>
+                    <Input
+                      id="rounds"
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={rounds}
+                      onChange={(e) =>
+                        setRounds(Math.min(Math.max(1, parseInt(e.target.value, 10) || 1), 10))
+                      }
+                      className="w-20"
+                    />
+                  </div>
+                </div>
                 <Button type="submit" disabled={isRunning}>
                   {isRunning ? "Running..." : "Start Benchmark"}
                 </Button>
@@ -100,7 +161,7 @@ export function BenchmarkPage() {
 
           {/* Benchmark Results */}
           <div className="space-y-4">
-            {benchmarks.length === 0 ? (
+            {displayedBenchmarks.length === 0 ? (
               <Card>
                 <CardHeader className="text-center">
                   <CardTitle>No benchmark runs yet</CardTitle>
@@ -111,13 +172,22 @@ export function BenchmarkPage() {
                 <CardContent className="text-center text-4xl pb-6">📊</CardContent>
               </Card>
             ) : (
-              benchmarks.map((benchmark) => (
+              displayedBenchmarks.map((benchmark) => (
                 <Card
                   key={benchmark._id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setSelectedBenchmarkId(benchmark._id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setSelectedBenchmarkId(benchmark._id);
+                    }
+                  }}
                   className={
                     selectedBenchmarkId === benchmark._id
-                      ? "ring-2 ring-primary/30 ring-offset-2"
-                      : ""
+                      ? "ring-2 ring-primary/30 ring-offset-2 cursor-pointer"
+                      : "cursor-pointer"
                   }
                 >
                   <CardHeader>
@@ -149,13 +219,6 @@ export function BenchmarkPage() {
                         <span className="text-sm text-slate-500">
                           {formatDuration(benchmark.startTime, benchmark.endTime)}
                         </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setSelectedBenchmarkId(benchmark._id)}
-                        >
-                          View details
-                        </Button>
                       </div>
                     </div>
                   </CardHeader>
@@ -205,21 +268,10 @@ export function BenchmarkPage() {
           </div>
 
           <div className="space-y-4 mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Case Breakdown</CardTitle>
-                <CardDescription>
-                  {selectedBenchmarkId
-                    ? "Detailed per-case output stored by Convex."
-                    : "Choose a benchmark run to view detailed case output."}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
             {!selectedBenchmarkId ? (
               <Card>
                 <CardContent className="p-4 text-sm text-slate-600">
-                  Select a run from above to inspect model-by-model answers.
+                  Click a benchmark run above to inspect model-by-model answers.
                 </CardContent>
               </Card>
             ) : benchmarkCaseResults === undefined ? (
@@ -241,46 +293,98 @@ export function BenchmarkPage() {
                 .map((benchmark) => (
                   <Card key={benchmark._id}>
                     <CardHeader>
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
+                      <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+                        <div className="flex-1 min-w-0">
                           <CardTitle className="text-lg">Case {benchmark.caseIndex + 1}</CardTitle>
-                          <CardDescription>{benchmark.question}</CardDescription>
+                          <CardDescription className="break-words">
+                            {benchmark.question}
+                          </CardDescription>
                         </div>
-                        <Badge variant="info">Expected: {benchmark.expectedOption}</Badge>
+                        <div className="flex-shrink-0">
+                          <Badge variant="info" className="whitespace-nowrap">
+                            Expected: {benchmark.expectedOption}
+                          </Badge>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {benchmark.modelResults.map((modelResult) => (
-                          <div
-                            key={modelResult.model}
-                            className="border border-slate-200 rounded-lg p-3"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">{modelResult.model}</span>
-                              <div className="flex gap-2">
-                                <Badge
-                                  variant={modelResult.round1Correct ? "success" : "destructive"}
-                                >
-                                  round1: {modelResult.round1Option ?? "n/a"}
-                                </Badge>
-                                <Badge
-                                  variant={modelResult.finalCorrect ? "success" : "destructive"}
-                                >
-                                  final: {modelResult.finalOption ?? "n/a"}
-                                </Badge>
+                        {benchmark.modelResults.map((modelResult) => {
+                          const hasResponse =
+                            (modelResult.round1RawResponse != null &&
+                              modelResult.round1RawResponse !== "") ||
+                            (modelResult.finalRawResponse != null &&
+                              modelResult.finalRawResponse !== "");
+                          const responseKey = `${benchmark._id}-${modelResult.model}`;
+                          const isExpanded = expandedResponses.has(responseKey);
+
+                          return (
+                            <div
+                              key={modelResult.model}
+                              className="border border-slate-200 rounded-lg p-3"
+                            >
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="font-medium">{modelResult.model}</span>
+                                <div className="flex gap-2 items-center flex-wrap">
+                                  <Badge
+                                    variant={modelResult.round1Correct ? "success" : "destructive"}
+                                  >
+                                    round1: {modelResult.round1Option ?? "n/a"}
+                                  </Badge>
+                                  <Badge
+                                    variant={modelResult.finalCorrect ? "success" : "destructive"}
+                                  >
+                                    final: {modelResult.finalOption ?? "n/a"}
+                                  </Badge>
+                                  {hasResponse && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs"
+                                      onClick={() => toggleResponseExpanded(responseKey)}
+                                    >
+                                      {isExpanded ? "Hide response" : "View response"}
+                                    </Button>
+                                  )}
+                                </div>
                               </div>
+                              {(modelResult.round1ParseError || modelResult.finalParseError) && (
+                                <p className="text-xs text-red-700 mt-2">
+                                  Parse issue:{" "}
+                                  {modelResult.finalParseError ??
+                                    modelResult.round1ParseError ??
+                                    "Unknown parsing error"}
+                                </p>
+                              )}
+                              {isExpanded && hasResponse && (
+                                <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                                  {modelResult.round1RawResponse != null &&
+                                    modelResult.round1RawResponse !== "" && (
+                                      <div>
+                                        <div className="text-xs font-medium text-slate-500 mb-1">
+                                          Round 1 response
+                                        </div>
+                                        <pre className="text-xs bg-slate-50 rounded p-3 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
+                                          {modelResult.round1RawResponse}
+                                        </pre>
+                                      </div>
+                                    )}
+                                  {modelResult.finalRawResponse != null &&
+                                    modelResult.finalRawResponse !== "" && (
+                                      <div>
+                                        <div className="text-xs font-medium text-slate-500 mb-1">
+                                          Final response
+                                        </div>
+                                        <pre className="text-xs bg-slate-50 rounded p-3 overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
+                                          {modelResult.finalRawResponse}
+                                        </pre>
+                                      </div>
+                                    )}
+                                </div>
+                              )}
                             </div>
-                            {(modelResult.round1ParseError || modelResult.finalParseError) && (
-                              <p className="text-xs text-red-700 mt-2">
-                                Parse issue:{" "}
-                                {modelResult.finalParseError ??
-                                  modelResult.round1ParseError ??
-                                  "Unknown parsing error"}
-                              </p>
-                            )}
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>
