@@ -33,13 +33,7 @@ export const getFreeModels = action({
     const models = data.data ?? [];
 
     const free = models
-      .filter(
-        (m) =>
-          m.pricing?.prompt === "0" &&
-          m.pricing?.completion === "0" &&
-          m.id &&
-          m.name,
-      )
+      .filter((m) => m.pricing?.prompt === "0" && m.pricing?.completion === "0" && m.id && m.name)
       .sort((a, b) => (b.created ?? 0) - (a.created ?? 0));
 
     return free.map((m) => ({ id: m.id, name: m.name }));

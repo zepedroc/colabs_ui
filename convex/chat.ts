@@ -3,8 +3,8 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { getDefaultModels } from "./models";
 import { queryCouncilStream } from "./council";
+import { getDefaultModels } from "./models";
 import { getOpenRouterApiKey } from "./openrouterConfig";
 
 const councilMode = v.union(v.literal("parallel"), v.literal("conversation"));
@@ -35,9 +35,7 @@ export const sendMessage = mutation({
     });
 
     const models =
-      args.models && args.models.length >= 3
-        ? args.models.slice(0, 3)
-        : getDefaultModels();
+      args.models && args.models.length >= 3 ? args.models.slice(0, 3) : getDefaultModels();
 
     await ctx.scheduler.runAfter(0, internal.chat.runCouncilQuery, {
       userId,
@@ -83,6 +81,7 @@ export const appendAssistantMessage = internalMutation({
     ),
     round: v.optional(v.number()),
     model: v.optional(v.string()),
+    chartSpec: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("chatMessages", {
@@ -93,6 +92,7 @@ export const appendAssistantMessage = internalMutation({
       source: args.source,
       round: args.round,
       model: args.model,
+      chartSpec: args.chartSpec,
     });
   },
 });
@@ -117,6 +117,7 @@ export const runCouncilQuery = internalAction({
         args.query,
         args.rounds,
         args.mode,
+        true,
       )) {
         const trimmed = line.trim();
         if (!trimmed) continue;
@@ -127,8 +128,14 @@ export const runCouncilQuery = internalAction({
           model?: string;
           content?: string | null;
           error?: string | null;
+          chartSpec?: unknown;
           data?: {
-            responses?: Array<{ model?: string; content?: string | null; error?: string | null }>;
+            responses?: Array<{
+              model?: string;
+              content?: string | null;
+              error?: string | null;
+              chartSpec?: unknown;
+            }>;
           };
         };
         try {
@@ -147,6 +154,7 @@ export const runCouncilQuery = internalAction({
             source: "council_round",
             round: event.round,
             model: event.model,
+            chartSpec: event.chartSpec,
           });
           continue;
         }
@@ -165,6 +173,7 @@ export const runCouncilQuery = internalAction({
                   : modelResponse.content || "(no content)"),
               source: "council_final",
               model: modelResponse.model,
+              chartSpec: modelResponse.chartSpec,
             });
           }
         }

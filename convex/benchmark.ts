@@ -3,9 +3,9 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { getDefaultModels } from "./models";
 import { runBenchmarkStream } from "./benchmarkLogic";
 import benchmarkQuestions from "./benchmarks/questions.json";
+import { getDefaultModels } from "./models";
 import { getOpenRouterApiKey } from "./openrouterConfig";
 
 const benchmarkAnswerStatus = v.union(
@@ -58,9 +58,7 @@ export const startBenchmark = mutation({
     });
 
     const models =
-      args.models && args.models.length >= 3
-        ? args.models.slice(0, 3)
-        : getDefaultModels();
+      args.models && args.models.length >= 3 ? args.models.slice(0, 3) : getDefaultModels();
 
     await ctx.scheduler.runAfter(0, internal.benchmark.runBenchmark, {
       benchmarkId,
@@ -229,13 +227,7 @@ export const runBenchmark = internalAction({
 
       let hasSummary = false;
 
-      for await (const line of runBenchmarkStream(
-        apiKey,
-        models,
-        cases,
-        args.rounds,
-        "parallel",
-      )) {
+      for await (const line of runBenchmarkStream(apiKey, models, cases, args.rounds, "parallel")) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 

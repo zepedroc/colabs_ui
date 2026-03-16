@@ -17,9 +17,7 @@ export default function App() {
         <div className="h-14 flex justify-between items-center px-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-8">
             <NavLink to="/" className="flex items-center">
-              <span className="text-lg font-semibold text-slate-900 tracking-tight">
-                Colabs AI
-              </span>
+              <span className="text-lg font-semibold text-slate-900 tracking-tight">Colabs AI</span>
             </NavLink>
             <Authenticated>
               <nav className="flex gap-1">
@@ -122,7 +120,9 @@ function HomePage() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card className="text-left hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle className="text-xl font-semibold text-slate-900">AI Council Chat</CardTitle>
+              <CardTitle className="text-xl font-semibold text-slate-900">
+                AI Council Chat
+              </CardTitle>
               <CardDescription className="text-slate-600">
                 Engage with multiple AI agents in collaborative discussions and get diverse
                 perspectives on your queries.

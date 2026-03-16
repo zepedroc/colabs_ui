@@ -2,8 +2,10 @@ import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ChartBlock, type ChartSpec } from "@/components/ChartBlock";
+import { ModelSelector } from "@/components/ModelSelector";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -12,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ModelSelector } from "@/components/ModelSelector";
 import { api } from "../convex/_generated/api";
 import type { Doc } from "../convex/_generated/dataModel";
 
@@ -68,9 +69,7 @@ function LoadingCard({
       className={`${colors.border} border-l-4 ${colors.bg} min-w-0 shadow-sm overflow-hidden animate-pulse`}
     >
       <CardHeader className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
-        <span
-          className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
-        >
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}>
           {modelName.split("/").pop() ?? modelName}
         </span>
       </CardHeader>
@@ -173,7 +172,8 @@ export function ChatPage() {
   const [sessionId, setSessionId] = useState(() => `session-${Date.now()}-${Math.random()}`);
   const [rounds, setRounds] = useState(3);
   const [mode, setMode] = useState<CouncilMode>("parallel");
-  const [selectedModels, setSelectedModels] = useState<[string, string, string]>(DEFAULT_COUNCIL_MODELS);
+  const [selectedModels, setSelectedModels] =
+    useState<[string, string, string]>(DEFAULT_COUNCIL_MODELS);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -216,8 +216,7 @@ export function ChatPage() {
   const groups = groupMessages(messages);
 
   /** True when the last message is from user and we're waiting for council responses */
-  const isWaitingForCouncil =
-    groups.length > 0 && groups[groups.length - 1].type === "user";
+  const isWaitingForCouncil = groups.length > 0 && groups[groups.length - 1].type === "user";
 
   const filteredGroups = groups.filter((group, idx) => {
     if (group.type !== "final") return true;
@@ -261,7 +260,13 @@ export function ChatPage() {
               <div className="relative mb-12">
                 <div
                   className="absolute inset-0 rounded-full bg-gradient-to-br from-teal-400/20 to-sky-400/20 blur-3xl -z-10"
-                  style={{ width: 200, height: 200, left: "50%", top: "50%", transform: "translate(-50%, -50%)" }}
+                  style={{
+                    width: 200,
+                    height: 200,
+                    left: "50%",
+                    top: "50%",
+                    transform: "translate(-50%, -50%)",
+                  }}
                 />
                 <div className="flex items-center justify-center gap-6">
                   <div
@@ -284,7 +289,8 @@ export function ChatPage() {
                 Meet your AI council
               </h2>
               <p className="text-slate-600 text-center max-w-md mb-10 animate-fade-in-up [animation-delay:0.1s] [animation-fill-mode:forwards] opacity-0">
-                Three models collaborate on every question—compare perspectives, debate ideas, and get richer answers.
+                Three models collaborate on every question—compare perspectives, debate ideas, and
+                get richer answers.
               </p>
 
               {/* Suggested prompts */}
@@ -313,163 +319,165 @@ export function ChatPage() {
             </div>
           ) : (
             <>
-            {filteredGroups.map((group, idx) => {
-              if (group.type === "user") {
-                const msg = group.messages[0];
-                return (
-                  <div key={msg._id} className="flex justify-end">
-                    <Card className="max-w-xs lg:max-w-md bg-primary border-primary text-white">
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start gap-2 mb-1">
-                          <div className="text-sm font-medium">You</div>
-                          <div className="text-xs text-teal-100 shrink-0">
-                            {new Date(msg._creationTime).toLocaleTimeString()}
+              {filteredGroups.map((group, idx) => {
+                if (group.type === "user") {
+                  const msg = group.messages[0];
+                  return (
+                    <div key={msg._id} className="flex justify-end">
+                      <Card className="max-w-xs lg:max-w-md bg-primary border-primary text-white">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-start gap-2 mb-1">
+                            <div className="text-sm font-medium">You</div>
+                            <div className="text-xs text-teal-100 shrink-0">
+                              {new Date(msg._creationTime).toLocaleTimeString()}
+                            </div>
                           </div>
+                          <div className="whitespace-pre-wrap">{msg.content}</div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  );
+                }
+
+                if (group.type === "round" || group.type === "final") {
+                  const title = group.type === "round" ? `Round ${group.round}` : "Final answers";
+                  const messagesByModel = new Map(group.messages.map((m) => [m.model ?? "", m]));
+                  const sortedMessages = [...group.messages].sort((a, b) =>
+                    (a.model ?? "").localeCompare(b.model ?? ""),
+                  );
+                  const isLastGroup = idx === filteredGroups.length - 1;
+                  const isRoundInProgress =
+                    group.type === "round" &&
+                    isLastGroup &&
+                    group.messages.length < selectedModels.length;
+                  const slots = isRoundInProgress
+                    ? selectedModels.map((modelId) => ({
+                        modelId,
+                        msg: messagesByModel.get(modelId),
+                      }))
+                    : sortedMessages.map((m) => ({
+                        modelId: m.model ?? "Unknown",
+                        msg: m,
+                      }));
+                  const groupKey =
+                    group.type === "round"
+                      ? `round-${group.round}`
+                      : `final-${group.messages.map((m) => m._id).join("-")}`;
+                  const isFinal = group.type === "final";
+                  return (
+                    <div key={groupKey} className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                            isFinal
+                              ? "bg-primary/10 text-primary border border-primary/20"
+                              : "bg-slate-100 text-slate-600 border border-slate-200/80"
+                          }`}
+                        >
+                          {title}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {slots.map(({ modelId, msg }, idx) => {
+                          const colors = getAgentColorByIndex(idx);
+                          if (!msg) {
+                            return (
+                              <LoadingCard
+                                key={`loading-${modelId}`}
+                                modelName={modelId}
+                                colors={colors}
+                              />
+                            );
+                          }
+                          const body = extractMessageBody(msg.content);
+                          return (
+                            <Card
+                              key={msg._id}
+                              className={`${colors.border} border-l-4 ${colors.bg} min-w-0 shadow-sm hover:shadow-md transition-shadow overflow-hidden`}
+                            >
+                              <CardHeader className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
+                                <span
+                                  className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
+                                >
+                                  {(msg.model ?? "Unknown").split("/").pop() ?? msg.model}
+                                </span>
+                                <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                                  {new Date(msg._creationTime).toLocaleTimeString()}
+                                </span>
+                              </CardHeader>
+                              <CardContent className="px-4 py-4">
+                                {msg.chartSpec &&
+                                  typeof msg.chartSpec === "object" &&
+                                  "type" in msg.chartSpec &&
+                                  "labels" in msg.chartSpec &&
+                                  "datasets" in msg.chartSpec && (
+                                    <ChartBlock spec={msg.chartSpec as ChartSpec} />
+                                  )}
+                                <div
+                                  className={`text-sm prose prose-sm prose-agent max-w-none ${colors.accent} prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0`}
+                                >
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return group.messages.map((msg) => (
+                  <div key={msg._id} className="flex justify-start">
+                    <Card
+                      className={
+                        msg.source === "council_error"
+                          ? "w-full max-w-2xl border-red-200 bg-red-50/50 shadow-sm"
+                          : "max-w-full lg:max-w-2xl shadow-sm border-l-4 border-l-primary/40"
+                      }
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-slate-800">
+                              {msg.model ? msg.model.split("/").pop() : "AI Council"}
+                            </span>
+                            {msg.round ? (
+                              <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+                                Round {msg.round}
+                              </span>
+                            ) : null}
+                          </div>
+                          <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                            {new Date(msg._creationTime).toLocaleTimeString()}
+                          </span>
                         </div>
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                        </div>
                       </CardContent>
                     </Card>
                   </div>
-                );
-              }
-
-              if (group.type === "round" || group.type === "final") {
-                const title = group.type === "round" ? `Round ${group.round}` : "Final answers";
-                const messagesByModel = new Map(
-                  group.messages.map((m) => [m.model ?? "", m]),
-                );
-                const sortedMessages = [...group.messages].sort((a, b) =>
-                  (a.model ?? "").localeCompare(b.model ?? ""),
-                );
-                const isLastGroup = idx === filteredGroups.length - 1;
-                const isRoundInProgress =
-                  group.type === "round" &&
-                  isLastGroup &&
-                  group.messages.length < selectedModels.length;
-                const slots = isRoundInProgress
-                  ? selectedModels.map((modelId) => ({
-                      modelId,
-                      msg: messagesByModel.get(modelId),
-                    }))
-                  : sortedMessages.map((m) => ({
-                      modelId: m.model ?? "Unknown",
-                      msg: m,
-                    }));
-                const groupKey =
-                  group.type === "round"
-                    ? `round-${group.round}`
-                    : `final-${group.messages.map((m) => m._id).join("-")}`;
-                const isFinal = group.type === "final";
-                return (
-                  <div key={groupKey} className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                          isFinal
-                            ? "bg-primary/10 text-primary border border-primary/20"
-                            : "bg-slate-100 text-slate-600 border border-slate-200/80"
-                        }`}
-                      >
-                        {title}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {slots.map(({ modelId, msg }, idx) => {
-                        const colors = getAgentColorByIndex(idx);
-                        if (!msg) {
-                          return (
-                            <LoadingCard
-                              key={`loading-${modelId}`}
-                              modelName={modelId}
-                              colors={colors}
-                            />
-                          );
-                        }
-                        const body = extractMessageBody(msg.content);
-                        return (
-                          <Card
-                            key={msg._id}
-                            className={`${colors.border} border-l-4 ${colors.bg} min-w-0 shadow-sm hover:shadow-md transition-shadow overflow-hidden`}
-                          >
-                            <CardHeader className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
-                              <span
-                                className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
-                              >
-                                {(msg.model ?? "Unknown").split("/").pop() ??
-                                  msg.model}
-                              </span>
-                              <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
-                                {new Date(
-                                  msg._creationTime,
-                                ).toLocaleTimeString()}
-                              </span>
-                            </CardHeader>
-                            <CardContent className="px-4 py-4">
-                              <div
-                                className={`text-sm prose prose-sm prose-agent max-w-none ${colors.accent} prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0`}
-                              >
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        );
-                      })}
-                    </div>
+                ));
+              })}
+              {isWaitingForCouncil && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                      Responding...
+                    </span>
                   </div>
-                );
-              }
-
-              return group.messages.map((msg) => (
-                <div key={msg._id} className="flex justify-start">
-                  <Card
-                    className={
-                      msg.source === "council_error"
-                        ? "w-full max-w-2xl border-red-200 bg-red-50/50 shadow-sm"
-                        : "max-w-full lg:max-w-2xl shadow-sm border-l-4 border-l-primary/40"
-                    }
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-800">
-                            {msg.model ? msg.model.split("/").pop() : "AI Council"}
-                          </span>
-                          {msg.round ? (
-                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                              Round {msg.round}
-                            </span>
-                          ) : null}
-                        </div>
-                        <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
-                          {new Date(msg._creationTime).toLocaleTimeString()}
-                        </span>
-                      </div>
-                      <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedModels.map((modelId, modelIdx) => (
+                      <LoadingCard
+                        key={`waiting-${modelId}`}
+                        modelName={modelId}
+                        colors={getAgentColorByIndex(modelIdx)}
+                      />
+                    ))}
+                  </div>
                 </div>
-              ));
-            })}
-            {isWaitingForCouncil && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
-                    Responding...
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {selectedModels.map((modelId, modelIdx) => (
-                    <LoadingCard
-                      key={`waiting-${modelId}`}
-                      modelName={modelId}
-                      colors={getAgentColorByIndex(modelIdx)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
             </>
           )}
           {requestError && (
@@ -534,7 +542,11 @@ export function ChatPage() {
             className="h-11 flex-1 min-w-[200px]"
             disabled={isSubmitting}
           />
-          <Button type="submit" disabled={!message.trim() || isSubmitting} className="h-11 shrink-0">
+          <Button
+            type="submit"
+            disabled={!message.trim() || isSubmitting}
+            className="h-11 shrink-0"
+          >
             {isSubmitting ? "Submitting..." : "Send"}
           </Button>
         </form>

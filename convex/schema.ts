@@ -28,6 +28,7 @@ const applicationTables = {
     content: v.string(),
     role: v.union(v.literal("user"), v.literal("assistant")),
     sessionId: v.string(),
+    chartSpec: v.optional(v.any()),
     source: v.optional(
       v.union(
         v.literal("user"),

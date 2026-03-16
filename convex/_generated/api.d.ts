@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agentTools from "../agentTools.js";
 import type * as aiConfig from "../aiConfig.js";
 import type * as auth from "../auth.js";
 import type * as benchmark from "../benchmark.js";
@@ -30,6 +31,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentTools: typeof agentTools;
   aiConfig: typeof aiConfig;
   auth: typeof auth;
   benchmark: typeof benchmark;
