@@ -1,11 +1,10 @@
-import { useAction } from "convex/react";
 import { Ban, Check, ChevronDown, Star } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useFreeModels } from "@/hooks/useFreeModels";
 import { useModelPreferences } from "@/hooks/useModelPreferences";
 import { cn } from "@/lib/utils";
-import { api } from "../../convex/_generated/api";
 
 const DEFAULT_MODELS = [
   "stepfun/step-3.5-flash:free",
@@ -38,36 +37,10 @@ export function ModelSelector({
   disabled,
   dropdownPosition = "up",
 }: ModelSelectorProps) {
-  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const getFreeModels = useAction(api.models.getFreeModels);
+  const { models, loading, error } = useFreeModels();
   const { favorites, deprecated, toggleFavorite, toggleDeprecated } = useModelPreferences();
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getFreeModels()
-      .then((list) => {
-        if (!cancelled) {
-          setModels(list);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load models");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [getFreeModels]);
 
   const handleToggle = useCallback(
     (modelId: string) => {
@@ -252,33 +225,7 @@ export function SingleModelSelector({
   disabled,
   label = "Orchestrator:",
 }: SingleModelSelectorProps) {
-  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const getFreeModels = useAction(api.models.getFreeModels);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getFreeModels()
-      .then((list) => {
-        if (!cancelled) {
-          setModels(list);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load models");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [getFreeModels]);
+  const { models, loading, error } = useFreeModels();
 
   useEffect(() => {
     if (models.length === 0) return;
