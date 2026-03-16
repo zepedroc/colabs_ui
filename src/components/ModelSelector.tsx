@@ -2,6 +2,7 @@ import { useAction } from "convex/react";
 import { Ban, Check, ChevronDown, Star } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useModelPreferences } from "@/hooks/useModelPreferences";
 import { cn } from "@/lib/utils";
 import { api } from "../../convex/_generated/api";
@@ -18,6 +19,13 @@ export type ModelSelectorProps = {
   disabled?: boolean;
   /** When "down", dropdown opens below the button. Default "up" opens above. */
   dropdownPosition?: "up" | "down";
+};
+
+export type SingleModelSelectorProps = {
+  value: string;
+  onChange: (model: string) => void;
+  disabled?: boolean;
+  label?: string;
 };
 
 /**
@@ -234,6 +242,80 @@ export function ModelSelector({
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+export function SingleModelSelector({
+  value,
+  onChange,
+  disabled,
+  label = "Orchestrator:",
+}: SingleModelSelectorProps) {
+  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const getFreeModels = useAction(api.models.getFreeModels);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getFreeModels()
+      .then((list) => {
+        if (!cancelled) {
+          setModels(list);
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load models");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [getFreeModels]);
+
+  useEffect(() => {
+    if (models.length === 0) return;
+    const selectedExists = models.some((m) => m.id === value);
+    if (!selectedExists) {
+      onChange(models[0]?.id ?? DEFAULT_MODELS[0]);
+    }
+  }, [models, value, onChange]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-slate-500">
+        <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-primary" />
+        Loading orchestrator...
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 shrink-0 text-sm text-slate-600">
+      <span>{label}</span>
+      <Select value={value} onValueChange={onChange} disabled={disabled || models.length === 0}>
+        <SelectTrigger
+          className="h-11 w-[280px] shrink-0"
+          title={error ?? undefined}
+          aria-label="Select orchestrator model"
+        >
+          <SelectValue placeholder="Select orchestrator model" />
+        </SelectTrigger>
+        <SelectContent>
+          {models.map((model) => (
+            <SelectItem key={model.id} value={model.id}>
+              {model.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

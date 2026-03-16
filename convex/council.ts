@@ -53,6 +53,30 @@ const FINAL_ROUND_PROMPT_TEMPLATE =
   "{context}\n\n" +
   "This is the final round. Provide your final answer to the user query. Be concise.";
 
+const RESEARCH_COUNCIL_SYSTEM_PROMPT =
+  "You are a council member in research mode. Follow the orchestrator's instructions, use tools when useful, " +
+  "and clearly separate verified facts from assumptions.";
+
+const RESEARCH_ORCHESTRATOR_SYSTEM_PROMPT =
+  "You are an orchestrator coordinating three research agents. " +
+  "Your job is to drive the team to a high-quality answer by asking focused follow-ups, verification passes, and challenges. " +
+  "Always return STRICT JSON, no markdown, no prose outside JSON.";
+
+type ResearchDecision = {
+  decision: "continue" | "stop";
+  rationale: string;
+  globalInstruction: string;
+  verificationChecklist: string[];
+  perModel: Array<{ model: string; instruction: string }>;
+};
+
+type ResearchRoundState = {
+  round: number;
+  orchestratorMessage: string;
+  decision: ResearchDecision;
+  councilResponses: ModelResponse[];
+};
+
 async function querySingleModel(
   apiKey: string,
   model: string,
@@ -163,6 +187,252 @@ function recordResponse(
   const assistantContent = response.content ?? `[Round ${roundNumber} error] ${response.error}`;
   history.push({ role: "assistant", content: assistantContent });
   return response;
+}
+
+function extractJsonObject(raw: string): string | null {
+  const fenced = raw.match(/```json\s*([\s\S]*?)```/i)?.[1] ?? raw;
+  const start = fenced.indexOf("{");
+  const end = fenced.lastIndexOf("}");
+  if (start < 0 || end < 0 || end <= start) {
+    return null;
+  }
+  return fenced.slice(start, end + 1);
+}
+
+function defaultResearchDecision(models: string[], roundNumber: number, maxRounds: number): ResearchDecision {
+  const shouldStop = roundNumber >= maxRounds;
+  return {
+    decision: shouldStop ? "stop" : "continue",
+    rationale: shouldStop
+      ? "Reached maximum rounds; proceed to final synthesis."
+      : "Continue with deeper analysis and verification.",
+    globalInstruction:
+      "Improve answer quality, challenge weak assumptions, and verify the most important claims.",
+    verificationChecklist: [
+      "Check factual claims for internal consistency",
+      "Call out uncertainty explicitly",
+      "Provide practical, user-actionable guidance",
+    ],
+    perModel: models.map((model, idx) => ({
+      model,
+      instruction:
+        idx === 0
+          ? "Build a structured core answer with key steps."
+          : idx === 1
+            ? "Critique assumptions and identify risks or missing evidence."
+            : "Propose alternatives and edge cases, then suggest what to verify.",
+    })),
+  };
+}
+
+function parseResearchDecision(
+  rawResponse: string,
+  models: string[],
+  roundNumber: number,
+  maxRounds: number,
+): ResearchDecision {
+  const fallback = defaultResearchDecision(models, roundNumber, maxRounds);
+  const jsonCandidate = extractJsonObject(rawResponse);
+  if (!jsonCandidate) {
+    return fallback;
+  }
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonCandidate) as Record<string, unknown>;
+  } catch {
+    return fallback;
+  }
+
+  const decision = parsed.decision === "stop" || roundNumber >= maxRounds ? "stop" : "continue";
+  const rationale =
+    typeof parsed.rationale === "string" && parsed.rationale.trim()
+      ? parsed.rationale.trim()
+      : fallback.rationale;
+  const globalInstruction =
+    typeof parsed.globalInstruction === "string" && parsed.globalInstruction.trim()
+      ? parsed.globalInstruction.trim()
+      : fallback.globalInstruction;
+  const verificationChecklist = Array.isArray(parsed.verificationChecklist)
+    ? parsed.verificationChecklist.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    : fallback.verificationChecklist;
+
+  const perModelMap = new Map<string, string>();
+  if (Array.isArray(parsed.perModel)) {
+    for (const item of parsed.perModel) {
+      if (!item || typeof item !== "object") continue;
+      const obj = item as Record<string, unknown>;
+      const model = typeof obj.model === "string" ? obj.model : "";
+      const instruction = typeof obj.instruction === "string" ? obj.instruction : "";
+      if (models.includes(model) && instruction.trim()) {
+        perModelMap.set(model, instruction.trim());
+      }
+    }
+  }
+
+  const perModel = models.map((model, idx) => ({
+    model,
+    instruction: perModelMap.get(model) ?? fallback.perModel[idx]?.instruction ?? globalInstruction,
+  }));
+
+  return {
+    decision,
+    rationale,
+    globalInstruction,
+    verificationChecklist,
+    perModel,
+  };
+}
+
+function formatResearchHistory(rounds: ResearchRoundState[]): string {
+  if (rounds.length === 0) {
+    return "No prior rounds yet.";
+  }
+
+  const lines: string[] = [];
+  for (const round of rounds) {
+    lines.push(`Round ${round.round} orchestrator note: ${round.orchestratorMessage}`);
+    for (const response of round.councilResponses) {
+      const body = response.content ?? `[Error] ${response.error ?? "Unknown error"}`;
+      lines.push(`- ${response.model}: ${body}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function buildResearchPlanningPrompt(
+  query: string,
+  models: string[],
+  roundNumber: number,
+  maxRounds: number,
+  previousRounds: ResearchRoundState[],
+): string {
+  const transcript = formatResearchHistory(previousRounds);
+  return (
+    `User query:\n${query}\n\n` +
+    `Round: ${roundNumber}/${maxRounds}\n` +
+    `Council models: ${models.join(", ")}\n\n` +
+    `Transcript so far:\n${transcript}\n\n` +
+    "Decide whether the council should continue iterating or stop and synthesize final output.\n" +
+    "Quality rubric:\n" +
+    "1) Query coverage is complete.\n" +
+    "2) Conflicts or open questions are resolved or called out.\n" +
+    "3) High-risk factual claims are verified or explicitly marked uncertain.\n" +
+    "4) Final output can be actionable and concise.\n\n" +
+    "Return STRICT JSON with this exact shape:\n" +
+    '{\n' +
+    '  "decision": "continue" | "stop",\n' +
+    '  "rationale": "short reason",\n' +
+    '  "globalInstruction": "guidance for all models",\n' +
+    '  "verificationChecklist": ["item1", "item2"],\n' +
+    '  "perModel": [\n' +
+    '    { "model": "exact model id", "instruction": "targeted instruction" }\n' +
+    "  ]\n" +
+    "}\n" +
+    "Never omit any model in perModel.\n"
+  );
+}
+
+function buildResearchCouncilPrompt(
+  query: string,
+  roundNumber: number,
+  instruction: string,
+  decision: ResearchDecision,
+  previousRounds: ResearchRoundState[],
+): string {
+  const history = formatResearchHistory(previousRounds);
+  return (
+    `Original user query:\n${query}\n\n` +
+    `Current round: ${roundNumber}\n` +
+    `Orchestrator global instruction:\n${decision.globalInstruction}\n\n` +
+    `Your targeted instruction:\n${instruction}\n\n` +
+    `Verification checklist:\n- ${decision.verificationChecklist.join("\n- ")}\n\n` +
+    `Previous transcript:\n${history}\n\n` +
+    "Respond with your best contribution for this round. Be concrete, challenge assumptions where needed, " +
+    "and explicitly label uncertain claims."
+  );
+}
+
+function formatResearchOrchestratorMessage(decision: ResearchDecision, roundNumber: number): string {
+  const modelInstructions = decision.perModel
+    .map((item) => `- ${item.model}: ${item.instruction}`)
+    .join("\n");
+  const checklist = decision.verificationChecklist.map((item) => `- ${item}`).join("\n");
+  return (
+    `Orchestrator round ${roundNumber}\n` +
+    `Decision: ${decision.decision}\n\n` +
+    `Rationale: ${decision.rationale}\n\n` +
+    `Global instruction:\n${decision.globalInstruction}\n\n` +
+    `Per-model instructions:\n${modelInstructions}\n\n` +
+    `Verification checklist:\n${checklist}`
+  );
+}
+
+function buildResearchFinalPrompt(query: string, rounds: ResearchRoundState[]): string {
+  const transcript = formatResearchHistory(rounds);
+  return (
+    `Original user query:\n${query}\n\n` +
+    `Council transcript:\n${transcript}\n\n` +
+    "Produce the final answer for the user. Requirements:\n" +
+    "- Address the user request directly.\n" +
+    "- Resolve or clearly call out remaining uncertainty.\n" +
+    "- Prefer concise, actionable output.\n"
+  );
+}
+
+async function* runResearchRoundParallel(
+  apiKey: string,
+  models: string[],
+  query: string,
+  roundNumber: number,
+  decision: ResearchDecision,
+  previousRounds: ResearchRoundState[],
+  modelHistories: Record<string, ChatMessage[]>,
+  toolsEnabled: boolean,
+): AsyncGenerator<ModelResponse> {
+  type Wrapped = {
+    p: Promise<{ response: ModelResponse; prompt: string; index: number }>;
+    index: number;
+  };
+
+  const wrapped: Wrapped[] = models.map((model, index) => {
+    const instruction =
+      decision.perModel.find((item) => item.model === model)?.instruction ?? decision.globalInstruction;
+    const prompt = buildResearchCouncilPrompt(
+      query,
+      roundNumber,
+      instruction,
+      decision,
+      previousRounds,
+    );
+    const messages: ChatMessage[] = [...modelHistories[model], { role: "user", content: prompt }];
+    const p = querySingleModel(apiKey, model, messages, toolsEnabled).then((response) => ({
+      response: {
+        model,
+        content: response.content,
+        error: response.error,
+        chartSpec: response.chartSpec,
+      },
+      prompt,
+      index,
+    }));
+    return { p, index };
+  });
+
+  const results: (ModelResponse | undefined)[] = new Array(models.length);
+  let completed = 0;
+
+  while (completed < models.length) {
+    const { response, prompt, index } = await Promise.race(
+      wrapped.filter((w) => results[w.index] === undefined).map((w) => w.p),
+    );
+    const recorded = recordResponse(response, prompt, roundNumber, modelHistories);
+    results[index] = recorded;
+    completed++;
+    yield recorded;
+  }
+
+  await Promise.all(wrapped.map((w) => w.p));
 }
 
 /**
@@ -347,4 +617,124 @@ export async function* queryCouncilStream(
   const finalResponses = allRounds[allRounds.length - 1] ?? [];
   const councilResponse: CouncilResponse = { query, responses: finalResponses };
   yield `${JSON.stringify({ type: "final", data: councilResponse })}\n`;
+}
+
+/**
+ * Research mode: orchestrator drives three council agents until quality is sufficient
+ * or max rounds is reached, then synthesizes a final answer.
+ */
+export async function* queryResearchCouncilStream(
+  apiKey: string,
+  models: string[],
+  orchestratorModel: string,
+  query: string,
+  maxRounds: number,
+  toolsEnabled = true,
+): AsyncGenerator<string> {
+  if (maxRounds < 1) {
+    throw new Error("maxRounds must be >= 1");
+  }
+  if (models.length < 1) {
+    throw new Error("At least one council model is required");
+  }
+
+  try {
+    const safeOrchestrator = orchestratorModel || models[0];
+    const modelHistories: Record<string, ChatMessage[]> = {};
+    for (const model of models) {
+      modelHistories[model] = [{ role: "system", content: RESEARCH_COUNCIL_SYSTEM_PROMPT }];
+    }
+
+    const rounds: ResearchRoundState[] = [];
+
+    for (let roundNumber = 1; roundNumber <= maxRounds; roundNumber++) {
+      const planningPrompt = buildResearchPlanningPrompt(
+        query,
+        models,
+        roundNumber,
+        maxRounds,
+        rounds,
+      );
+
+      let orchestratorRaw = "";
+      try {
+        orchestratorRaw = await sendQuery(apiKey, safeOrchestrator, [
+          { role: "system", content: RESEARCH_ORCHESTRATOR_SYSTEM_PROMPT },
+          { role: "user", content: planningPrompt },
+        ]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        yield `${JSON.stringify({ type: "research_error", error: message })}\n`;
+        return;
+      }
+
+      const decision = parseResearchDecision(orchestratorRaw, models, roundNumber, maxRounds);
+      const orchestratorMessage = formatResearchOrchestratorMessage(decision, roundNumber);
+
+      yield `${JSON.stringify({
+        type: "research_orchestrator",
+        round: roundNumber,
+        model: safeOrchestrator,
+        content: orchestratorMessage,
+      })}\n`;
+
+      if (roundNumber > 1 && decision.decision === "stop") {
+        break;
+      }
+
+      const councilResponses: ModelResponse[] = [];
+      for await (const response of runResearchRoundParallel(
+        apiKey,
+        models,
+        query,
+        roundNumber,
+        decision,
+        rounds,
+        modelHistories,
+        toolsEnabled,
+      )) {
+        councilResponses.push(response);
+        yield `${JSON.stringify({
+          type: "research_council_response",
+          round: roundNumber,
+          model: response.model,
+          content: response.content,
+          error: response.error,
+          chartSpec: response.chartSpec,
+        })}\n`;
+      }
+
+      rounds.push({
+        round: roundNumber,
+        orchestratorMessage,
+        decision,
+        councilResponses,
+      });
+    }
+
+    let finalContent: string | null = null;
+    let finalError: string | null = null;
+    try {
+      finalContent = await sendQuery(apiKey, safeOrchestrator, [
+        {
+          role: "system",
+          content:
+            "You are the research orchestrator delivering the final response. Be direct, actionable, and explicit about uncertainty.",
+        },
+        { role: "user", content: buildResearchFinalPrompt(query, rounds) },
+      ]);
+    } catch (error) {
+      finalError = error instanceof Error ? error.message : String(error);
+    }
+
+    yield `${JSON.stringify({
+      type: "research_final",
+      model: safeOrchestrator,
+      content: finalContent,
+      error: finalError,
+    })}\n`;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    yield `${JSON.stringify({ type: "research_error", error: message })}\n`;
+  }
 }

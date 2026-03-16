@@ -35,6 +35,10 @@ const applicationTables = {
         v.literal("council_round"),
         v.literal("council_final"),
         v.literal("council_error"),
+        v.literal("research_orchestrator"),
+        v.literal("research_council"),
+        v.literal("research_final"),
+        v.literal("research_error"),
         // Legacy values (kept for backward compatibility with existing documents)
         v.literal("fastapi_round"),
         v.literal("fastapi_final"),

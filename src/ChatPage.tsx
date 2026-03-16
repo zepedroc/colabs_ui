@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ChartBlock, type ChartSpec } from "@/components/ChartBlock";
-import { ModelSelector } from "@/components/ModelSelector";
+import { ModelSelector, SingleModelSelector } from "@/components/ModelSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import {
 import { api } from "../convex/_generated/api";
 import type { Doc } from "../convex/_generated/dataModel";
 
-type CouncilMode = "parallel" | "conversation";
+type CouncilMode = "parallel" | "conversation" | "research";
 
 const AGENT_COLORS = [
   {
@@ -100,6 +100,9 @@ type MessageGroup =
   | { type: "user"; messages: Doc<"chatMessages">[] }
   | { type: "round"; round: number; messages: Doc<"chatMessages">[] }
   | { type: "final"; messages: Doc<"chatMessages">[] }
+  | { type: "research_orchestrator"; round: number; messages: Doc<"chatMessages">[] }
+  | { type: "research_round"; round: number; messages: Doc<"chatMessages">[] }
+  | { type: "research_final"; messages: Doc<"chatMessages">[] }
   | { type: "single"; messages: Doc<"chatMessages">[] };
 
 function groupMessages(messages: Doc<"chatMessages">[]): MessageGroup[] {
@@ -127,6 +130,36 @@ function groupMessages(messages: Doc<"chatMessages">[]): MessageGroup[] {
         } else {
           if (currentGroup) result.push(currentGroup);
           currentGroup = { type: "final", messages: [msg] };
+        }
+      } else if (msg.source === "research_orchestrator") {
+        const round = msg.round ?? 0;
+        if (
+          currentGroup &&
+          currentGroup.type === "research_orchestrator" &&
+          currentGroup.round === round
+        ) {
+          currentGroup.messages.push(msg);
+        } else {
+          if (currentGroup) result.push(currentGroup);
+          currentGroup = { type: "research_orchestrator", round, messages: [msg] };
+        }
+      } else if (msg.source === "research_council" && msg.round != null) {
+        if (
+          currentGroup &&
+          currentGroup.type === "research_round" &&
+          currentGroup.round === msg.round
+        ) {
+          currentGroup.messages.push(msg);
+        } else {
+          if (currentGroup) result.push(currentGroup);
+          currentGroup = { type: "research_round", round: msg.round, messages: [msg] };
+        }
+      } else if (msg.source === "research_final") {
+        if (currentGroup && currentGroup.type === "research_final") {
+          currentGroup.messages.push(msg);
+        } else {
+          if (currentGroup) result.push(currentGroup);
+          currentGroup = { type: "research_final", messages: [msg] };
         }
       } else {
         if (currentGroup) result.push(currentGroup);
@@ -166,6 +199,7 @@ const DEFAULT_COUNCIL_MODELS: [string, string, string] = [
   "arcee-ai/trinity-large-preview:free",
   "nvidia/nemotron-3-nano-30b-a3b:free",
 ];
+const DEFAULT_ORCHESTRATOR_MODEL = DEFAULT_COUNCIL_MODELS[0];
 
 export function ChatPage() {
   const [message, setMessage] = useState("");
@@ -174,6 +208,7 @@ export function ChatPage() {
   const [mode, setMode] = useState<CouncilMode>("parallel");
   const [selectedModels, setSelectedModels] =
     useState<[string, string, string]>(DEFAULT_COUNCIL_MODELS);
+  const [orchestratorModel, setOrchestratorModel] = useState(DEFAULT_ORCHESTRATOR_MODEL);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -204,6 +239,7 @@ export function ChatPage() {
         rounds,
         mode,
         models: selectedModels,
+        orchestratorModel,
       });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "Failed to send message.");
@@ -339,17 +375,50 @@ export function ChatPage() {
                   );
                 }
 
-                if (group.type === "round" || group.type === "final") {
-                  const title = group.type === "round" ? `Round ${group.round}` : "Final answers";
+                if (group.type === "research_orchestrator") {
+                  return (
+                    <div key={`research-orchestrator-${group.round}`} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700 border border-violet-200/70">
+                          Orchestrator · Round {group.round}
+                        </span>
+                      </div>
+                      {group.messages.map((msg) => (
+                        <Card
+                          key={msg._id}
+                          className="w-full border-l-4 border-l-violet-400 bg-gradient-to-br from-violet-50/80 to-white shadow-sm"
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-violet-100">
+                              <span className="text-sm font-semibold text-violet-900">
+                                {(msg.model ?? "Orchestrator").split("/").pop() ?? msg.model}
+                              </span>
+                              <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                                {new Date(msg._creationTime).toLocaleTimeString()}
+                              </span>
+                            </div>
+                            <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 text-violet-900">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  );
+                }
+
+                if (group.type === "round" || group.type === "research_round") {
+                  const title =
+                    group.type === "round"
+                      ? `Round ${group.round}`
+                      : `Research council · Round ${group.round}`;
                   const messagesByModel = new Map(group.messages.map((m) => [m.model ?? "", m]));
                   const sortedMessages = [...group.messages].sort((a, b) =>
                     (a.model ?? "").localeCompare(b.model ?? ""),
                   );
                   const isLastGroup = idx === filteredGroups.length - 1;
                   const isRoundInProgress =
-                    group.type === "round" &&
-                    isLastGroup &&
-                    group.messages.length < selectedModels.length;
+                    isLastGroup && group.messages.length < selectedModels.length;
                   const slots = isRoundInProgress
                     ? selectedModels.map((modelId) => ({
                         modelId,
@@ -360,20 +429,13 @@ export function ChatPage() {
                         msg: m,
                       }));
                   const groupKey =
-                    group.type === "round"
+                    group.type === "round" || group.type === "research_round"
                       ? `round-${group.round}`
-                      : `final-${group.messages.map((m) => m._id).join("-")}`;
-                  const isFinal = group.type === "final";
+                      : `research-round-${group.round}`;
                   return (
                     <div key={groupKey} className="space-y-3">
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                            isFinal
-                              ? "bg-primary/10 text-primary border border-primary/20"
-                              : "bg-slate-100 text-slate-600 border border-slate-200/80"
-                          }`}
-                        >
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
                           {title}
                         </span>
                       </div>
@@ -427,11 +489,98 @@ export function ChatPage() {
                   );
                 }
 
+                if (group.type === "final") {
+                  const title = "Final answers";
+                  const sortedMessages = [...group.messages].sort((a, b) =>
+                    (a.model ?? "").localeCompare(b.model ?? ""),
+                  );
+                  return (
+                    <div
+                      key={`final-${group.messages.map((m) => m._id).join("-")}`}
+                      className="space-y-3"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                          {title}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {sortedMessages.map((msg, modelIdx) => {
+                          const colors = getAgentColorByIndex(modelIdx);
+                          const body = extractMessageBody(msg.content);
+                          return (
+                            <Card
+                              key={msg._id}
+                              className={`${colors.border} border-l-4 ${colors.bg} min-w-0 shadow-sm hover:shadow-md transition-shadow overflow-hidden`}
+                            >
+                              <CardHeader className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
+                                <span
+                                  className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
+                                >
+                                  {(msg.model ?? "Unknown").split("/").pop() ?? msg.model}
+                                </span>
+                                <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                                  {new Date(msg._creationTime).toLocaleTimeString()}
+                                </span>
+                              </CardHeader>
+                              <CardContent className="px-4 py-4">
+                                {msg.chartSpec &&
+                                  typeof msg.chartSpec === "object" &&
+                                  "type" in msg.chartSpec &&
+                                  "labels" in msg.chartSpec &&
+                                  "datasets" in msg.chartSpec && (
+                                    <ChartBlock spec={msg.chartSpec as ChartSpec} />
+                                  )}
+                                <div
+                                  className={`text-sm prose prose-sm prose-agent max-w-none ${colors.accent} prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0`}
+                                >
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (group.type === "research_final") {
+                  const msg = group.messages[group.messages.length - 1];
+                  if (!msg) return null;
+                  return (
+                    <div key={msg._id} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200/70">
+                          Research final
+                        </span>
+                      </div>
+                      <Card className="w-full border-l-4 border-l-emerald-500 bg-gradient-to-br from-emerald-50/70 to-white shadow-sm">
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-emerald-100">
+                            <span className="text-sm font-semibold text-emerald-900">
+                              {(msg.model ?? "Orchestrator").split("/").pop() ?? msg.model}
+                            </span>
+                            <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                              {new Date(msg._creationTime).toLocaleTimeString()}
+                            </span>
+                          </div>
+                          <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 text-emerald-900">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {extractMessageBody(msg.content)}
+                            </ReactMarkdown>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  );
+                }
+
                 return group.messages.map((msg) => (
                   <div key={msg._id} className="flex justify-start">
                     <Card
                       className={
-                        msg.source === "council_error"
+                        msg.source === "council_error" || msg.source === "research_error"
                           ? "w-full max-w-2xl border-red-200 bg-red-50/50 shadow-sm"
                           : "max-w-full lg:max-w-2xl shadow-sm border-l-4 border-l-primary/40"
                       }
@@ -509,6 +658,13 @@ export function ChatPage() {
             onChange={setSelectedModels}
             disabled={isSubmitting}
           />
+          {mode === "research" ? (
+            <SingleModelSelector
+              value={orchestratorModel}
+              onChange={setOrchestratorModel}
+              disabled={isSubmitting}
+            />
+          ) : null}
           <Select
             value={mode}
             onValueChange={(v) => setMode(v as CouncilMode)}
@@ -520,10 +676,11 @@ export function ChatPage() {
             <SelectContent>
               <SelectItem value="parallel">Parallel Mode</SelectItem>
               <SelectItem value="conversation">Conversation Mode</SelectItem>
+              <SelectItem value="research">Research Mode</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center gap-1.5 shrink-0 text-sm text-slate-600">
-            <span>Rounds</span>
+            <span>{mode === "research" ? "Max rounds" : "Rounds"}</span>
             <Input
               type="number"
               min={1}
@@ -538,7 +695,11 @@ export function ChatPage() {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Message the AI council..."
+            placeholder={
+              mode === "research"
+                ? "Message the research team..."
+                : "Message the AI council..."
+            }
             className="h-11 flex-1 min-w-[200px]"
             disabled={isSubmitting}
           />

@@ -3,11 +3,16 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { queryCouncilStream } from "./council";
+import { getDefaultOrchestratorModel } from "./aiConfig";
+import { queryCouncilStream, queryResearchCouncilStream } from "./council";
 import { getDefaultModels } from "./models";
 import { getOpenRouterApiKey } from "./openrouterConfig";
 
-const councilMode = v.union(v.literal("parallel"), v.literal("conversation"));
+const councilMode = v.union(
+  v.literal("parallel"),
+  v.literal("conversation"),
+  v.literal("research"),
+);
 
 const modelsValidator = v.array(v.string());
 
@@ -18,6 +23,7 @@ export const sendMessage = mutation({
     rounds: v.number(),
     mode: councilMode,
     models: v.optional(modelsValidator),
+    orchestratorModel: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -36,6 +42,7 @@ export const sendMessage = mutation({
 
     const models =
       args.models && args.models.length >= 3 ? args.models.slice(0, 3) : getDefaultModels();
+    const orchestratorModel = args.orchestratorModel?.trim() || getDefaultOrchestratorModel();
 
     await ctx.scheduler.runAfter(0, internal.chat.runCouncilQuery, {
       userId,
@@ -44,6 +51,7 @@ export const sendMessage = mutation({
       rounds: args.rounds,
       mode: args.mode,
       models,
+      orchestratorModel,
     });
 
     return null;
@@ -78,6 +86,10 @@ export const appendAssistantMessage = internalMutation({
       v.literal("council_round"),
       v.literal("council_final"),
       v.literal("council_error"),
+      v.literal("research_orchestrator"),
+      v.literal("research_council"),
+      v.literal("research_final"),
+      v.literal("research_error"),
     ),
     round: v.optional(v.number()),
     model: v.optional(v.string()),
@@ -105,20 +117,32 @@ export const runCouncilQuery = internalAction({
     rounds: v.number(),
     mode: councilMode,
     models: v.array(v.string()),
+    orchestratorModel: v.string(),
   },
   handler: async (ctx, args) => {
     try {
       const apiKey = getOpenRouterApiKey();
       const models = args.models;
+      const stream =
+        args.mode === "research"
+          ? queryResearchCouncilStream(
+              apiKey,
+              models,
+              args.orchestratorModel,
+              args.query,
+              args.rounds,
+              true,
+            )
+          : queryCouncilStream(
+              apiKey,
+              models,
+              args.query,
+              args.rounds,
+              args.mode,
+              true,
+            );
 
-      for await (const line of queryCouncilStream(
-        apiKey,
-        models,
-        args.query,
-        args.rounds,
-        args.mode,
-        true,
-      )) {
+      for await (const line of stream) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
@@ -176,6 +200,55 @@ export const runCouncilQuery = internalAction({
               chartSpec: modelResponse.chartSpec,
             });
           }
+          continue;
+        }
+
+        if (event.type === "research_orchestrator") {
+          await ctx.runMutation(internal.chat.appendAssistantMessage, {
+            userId: args.userId as Id<"users">,
+            sessionId: args.sessionId,
+            content: event.content || "(no content)",
+            source: "research_orchestrator",
+            round: event.round,
+            model: event.model || args.orchestratorModel,
+          });
+          continue;
+        }
+
+        if (event.type === "research_council_response") {
+          const label = `Round ${event.round ?? "?"} · ${event.model ?? "unknown model"}`;
+          const body = event.error ? `Error: ${event.error}` : event.content || "(no content)";
+          await ctx.runMutation(internal.chat.appendAssistantMessage, {
+            userId: args.userId as Id<"users">,
+            sessionId: args.sessionId,
+            content: `${label}\n${body}`,
+            source: "research_council",
+            round: event.round,
+            model: event.model,
+            chartSpec: event.chartSpec,
+          });
+          continue;
+        }
+
+        if (event.type === "research_final") {
+          const body = event.error ? `Error: ${event.error}` : event.content || "(no content)";
+          await ctx.runMutation(internal.chat.appendAssistantMessage, {
+            userId: args.userId as Id<"users">,
+            sessionId: args.sessionId,
+            content: `Research final · ${event.model ?? "orchestrator"}\n${body}`,
+            source: "research_final",
+            model: event.model || args.orchestratorModel,
+          });
+          continue;
+        }
+
+        if (event.type === "research_error") {
+          await ctx.runMutation(internal.chat.appendAssistantMessage, {
+            userId: args.userId as Id<"users">,
+            sessionId: args.sessionId,
+            content: event.error ? `Research mode failed.\n${event.error}` : "Research mode failed.",
+            source: "research_error",
+          });
         }
       }
     } catch (error) {
