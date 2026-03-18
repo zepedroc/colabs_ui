@@ -37,6 +37,8 @@ export const sendMessage = mutation({
       throw new Error("Not authenticated");
     }
 
+    const generation = normalizeGenerationSettings(args.generation);
+
     // Insert user message
     await ctx.db.insert("chatMessages", {
       userId,
@@ -44,12 +46,12 @@ export const sendMessage = mutation({
       role: "user",
       sessionId: args.sessionId,
       source: "user",
+      generationMode: generation.mode,
     });
 
     const models =
       args.models && args.models.length >= 3 ? args.models.slice(0, 3) : getDefaultModels();
     const orchestratorModel = args.orchestratorModel?.trim() || getDefaultOrchestratorModel();
-    const generation = normalizeGenerationSettings(args.generation);
 
     await ctx.scheduler.runAfter(0, internal.chat.runCouncilQuery, {
       userId,
@@ -78,8 +80,9 @@ export const getMessages = query({
 
     return await ctx.db
       .query("chatMessages")
-      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
-      .filter((q) => q.eq(q.field("userId"), userId))
+      .withIndex("by_user_and_session", (q) =>
+        q.eq("userId", userId).eq("sessionId", args.sessionId),
+      )
       .order("asc")
       .collect();
   },

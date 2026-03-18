@@ -28,6 +28,7 @@ const applicationTables = {
     content: v.string(),
     role: v.union(v.literal("user"), v.literal("assistant")),
     sessionId: v.string(),
+    generationMode: v.optional(v.union(v.literal("answer"), v.literal("coding"))),
     // Preferred metric fields.
     promptTokens: v.optional(v.number()),
     completionTokens: v.optional(v.number()),
@@ -57,7 +58,10 @@ const applicationTables = {
     ),
     round: v.optional(v.number()),
     model: v.optional(v.string()),
-  }).index("by_session", ["sessionId"]),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_user", ["userId"])
+    .index("by_user_and_session", ["userId", "sessionId"]),
 
   benchmarkRuns: defineTable({
     userId: v.id("users"),

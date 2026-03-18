@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Info } from "lucide-react";
+import { Check, Copy, Info, Trash2 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ModelResponseBody, type ResponseViewMode } from "@/components/messages/ModelResponseBody";
@@ -57,6 +57,29 @@ function formatLatency(latencyMs: number | undefined): string {
   if (latencyMs === undefined) return "-";
   if (latencyMs >= 1000) return `${(latencyMs / 1000).toFixed(2)} s`;
   return `${Math.round(latencyMs)} ms`;
+}
+
+function getModelDisplayName(model: string): string {
+  return model.split("/").pop() ?? model;
+}
+
+function truncateText(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength - 1)}...`;
+}
+
+function formatSessionDate(timestamp: number): string {
+  return new Date(timestamp).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatChatType(mode: CompareGenerationMode): string {
+  return mode === "coding" ? "Coding" : "Text";
 }
 
 function getMessageLatency(msg: Doc<"chatMessages">): number | undefined {
@@ -174,18 +197,26 @@ export function ComparePage() {
   const [generationMode, setGenerationMode] = useState<CompareGenerationMode>("answer");
   const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>("response");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<Doc<"chatMessages">["_id"] | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const shouldScrollOnMessagesRef = useRef(true);
   const messages = useQuery(api.chat.getMessages, { sessionId }) || [];
+  const compareSessions = useQuery(api.compare.listSessions) || [];
   const sendMessage = useMutation(api.compare.sendMessage);
+  const deleteSession = useMutation(api.compare.deleteSession);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   useEffect(() => {
+    if (messages.length === 0 || !shouldScrollOnMessagesRef.current) {
+      return;
+    }
     scrollToBottom();
-  }, [scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +225,7 @@ export function ComparePage() {
     const query = message.trim();
     setMessage("");
     setRequestError(null);
+    shouldScrollOnMessagesRef.current = true;
     setIsSubmitting(true);
 
     try {
@@ -217,6 +249,26 @@ export function ComparePage() {
   const groups = groupMessages(messages);
   const isWaitingForResponses =
     groups.length > 0 && groups[groups.length - 1].type === "user";
+  const currentSessionSummary = compareSessions.find((session) => session.sessionId === sessionId);
+  const currentChatMode: CompareGenerationMode = useMemo(() => {
+    const hasCodingUserPrompt = messages.some(
+      (msg) => msg.role === "user" && msg.source === "user" && msg.generationMode === "coding",
+    );
+    if (hasCodingUserPrompt) {
+      return "coding";
+    }
+    const hasCodingArtifacts = messages.some(
+      (msg) =>
+        msg.role === "assistant" &&
+        extractRenderArtifacts(extractMessageBody(msg.content)).some(
+          (artifact) => artifact.kind === "html",
+        ),
+    );
+    if (hasCodingArtifacts) {
+      return "coding";
+    }
+    return currentSessionSummary?.mode ?? generationMode;
+  }, [messages, currentSessionSummary, generationMode]);
 
   const filteredGroups = groups.filter((group, idx) => {
     if (group.type !== "final") return true;
@@ -248,9 +300,62 @@ export function ComparePage() {
     }
   }, [hasHtmlPreview, responseViewMode]);
 
+  useEffect(() => {
+    if (currentChatMode !== "coding" && responseViewMode === "preview") {
+      setResponseViewMode("response");
+    }
+  }, [currentChatMode, responseViewMode]);
+
   const startNewCompare = () => {
+    shouldScrollOnMessagesRef.current = true;
     setSessionId(`compare-${Date.now()}-${Math.random()}`);
     setRequestError(null);
+  };
+
+  const handleSelectSession = (
+    nextSessionId: string,
+    models: string[],
+    mode: CompareGenerationMode,
+  ) => {
+    shouldScrollOnMessagesRef.current = false;
+    setSessionId(nextSessionId);
+    setGenerationMode(mode);
+    setRequestError(null);
+    if (models.length >= 2) {
+      const nextModels: [string, string] = [models[0], models[1]];
+      setSelectedModels(nextModels);
+    }
+  };
+
+  const handleDeleteSession = async (targetSessionId: string) => {
+    if (deletingSessionId || isSubmitting) {
+      return;
+    }
+
+    setDeletingSessionId(targetSessionId);
+    setRequestError(null);
+    try {
+      await deleteSession({ sessionId: targetSessionId });
+      if (targetSessionId === sessionId) {
+        setSessionId(`compare-${Date.now()}-${Math.random()}`);
+      }
+    } catch (error) {
+      setRequestError(error instanceof Error ? error.message : "Failed to delete chat.");
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
+
+  const handleCopyPrompt = async (messageId: Doc<"chatMessages">["_id"], prompt: string) => {
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopiedMessageId(messageId);
+      window.setTimeout(() => {
+        setCopiedMessageId((current) => (current === messageId ? null : current));
+      }, 1200);
+    } catch {
+      setRequestError("Failed to copy prompt.");
+    }
   };
 
   const responseViewToggle = (
@@ -276,8 +381,84 @@ export function ComparePage() {
   );
 
   return (
-    <div className="h-full flex flex-col min-h-0">
-      <div className="flex-1 overflow-y-auto p-6 pb-40 min-h-0">
+    <div className="h-full min-h-0">
+      <aside className="fixed left-4 top-20 bottom-28 z-20 hidden w-72 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-lg backdrop-blur lg:flex">
+        <div className="border-b border-slate-200/70 px-4 py-3">
+          <p className="text-sm font-semibold text-slate-800">Compare history</p>
+          <p className="text-xs text-slate-500">{compareSessions.length} chats</p>
+        </div>
+        <div className="flex-1 overflow-y-auto p-2">
+          {compareSessions.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-xs text-slate-500">
+              No previous compare chats yet.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {compareSessions.map((session) => {
+                const isActive = session.sessionId === sessionId;
+                const prompt = session.prompt.trim() ? session.prompt : "Untitled compare chat";
+                const isDeleting = deletingSessionId === session.sessionId;
+                return (
+                  <div
+                    key={session.sessionId}
+                    className={[
+                      "relative rounded-xl border transition-colors",
+                      isActive
+                        ? "border-primary/30 bg-primary/5"
+                        : "border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50/80",
+                    ].join(" ")}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSelectSession(session.sessionId, session.models, session.mode)
+                      }
+                      disabled={isSubmitting || isDeleting}
+                      className="w-full px-3 py-2.5 pr-10 text-left"
+                    >
+                      <div className="mb-1">
+                        <span
+                          className={[
+                            "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                            session.mode === "coding"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-amber-200 bg-amber-50 text-amber-700",
+                          ].join(" ")}
+                        >
+                          {formatChatType(session.mode)}
+                        </span>
+                      </div>
+                      <p className="text-xs font-medium text-slate-800">
+                        {truncateText(prompt, 80)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {session.models.length > 0
+                          ? session.models.map(getModelDisplayName).join(" vs ")
+                          : "No model data"}
+                      </p>
+                      <p className="mt-1 text-[11px] text-slate-400">
+                        {formatSessionDate(session.startedAt)}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSession(session.sessionId)}
+                      disabled={isSubmitting || isDeleting}
+                      className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+                      aria-label="Delete chat"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <div className="flex h-full min-h-0 flex-col lg:pl-[19rem]">
+        <div className="flex-1 overflow-y-auto p-6 pb-40 min-h-0">
         <div className="max-w-6xl mx-auto space-y-6">
           {messages.length === 0 ? (
             <div className="relative flex flex-col items-center justify-center min-h-[60vh] py-12 px-4 overflow-hidden">
@@ -324,8 +505,22 @@ export function ComparePage() {
                         <CardContent className="p-4">
                           <div className="flex justify-between items-start gap-2 mb-1">
                             <div className="text-sm font-medium">You</div>
-                            <div className="text-xs text-teal-100 shrink-0">
-                              {new Date(msg._creationTime).toLocaleTimeString()}
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleCopyPrompt(msg._id, msg.content)}
+                                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-teal-100/90 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                aria-label="Copy prompt"
+                              >
+                                {copiedMessageId === msg._id ? (
+                                  <Check className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                              <div className="text-xs text-teal-100">
+                                {new Date(msg._creationTime).toLocaleTimeString()}
+                              </div>
                             </div>
                           </div>
                           <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -360,7 +555,10 @@ export function ComparePage() {
                     group.type === "round"
                       ? `round-${group.round}`
                       : `final-${group.messages.map((m) => m._id).join("-")}`;
-                  const showViewToggle = idx > 0 && filteredGroups[idx - 1]?.type === "user";
+                  const showViewToggle =
+                    currentChatMode === "coding" &&
+                    idx > 0 &&
+                    filteredGroups[idx - 1]?.type === "user";
 
                   return (
                     <div key={groupKey} className="space-y-3">
@@ -460,7 +658,7 @@ export function ComparePage() {
         </div>
       </div>
 
-      <div className="fixed bottom-6 left-0 right-0 flex justify-center px-4 z-10 pointer-events-none">
+        <div className="fixed bottom-6 left-0 right-0 z-10 flex justify-center px-4 pointer-events-none lg:pl-[19rem]">
         <form
           onSubmit={handleSubmit}
           className="pointer-events-auto w-full max-w-4xl bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08),0_0_1px_rgba(0,0,0,0.1)] border border-slate-200/80 p-4 flex flex-col gap-3"
@@ -517,6 +715,7 @@ export function ComparePage() {
             </Button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );
