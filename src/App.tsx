@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { api } from "../convex/_generated/api";
 import { BenchmarkPage } from "./BenchmarkPage";
 import { ChatPage } from "./ChatPage";
+import { ComparePage } from "./ComparePage";
 import { LifeManagementPage } from "./LifeManagementPage";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
@@ -17,9 +18,7 @@ export default function App() {
         <div className="h-14 flex justify-between items-center px-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-8">
             <NavLink to="/" className="flex items-center">
-              <span className="text-lg font-semibold text-slate-900 tracking-tight">
-                Colabs AI
-              </span>
+              <span className="text-lg font-semibold text-slate-900 tracking-tight">Colabs AI</span>
             </NavLink>
             <Authenticated>
               <nav className="flex gap-1">
@@ -34,6 +33,13 @@ export default function App() {
                   {({ isActive }) => (
                     <Button variant={isActive ? "default" : "ghost"} size="sm">
                       Benchmark
+                    </Button>
+                  )}
+                </NavLink>
+                <NavLink to="/compare">
+                  {({ isActive }) => (
+                    <Button variant={isActive ? "default" : "ghost"} size="sm">
+                      Compare
                     </Button>
                   )}
                 </NavLink>
@@ -76,6 +82,7 @@ function Content() {
           <Route path="/" element={<HomePage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/benchmark" element={<BenchmarkPage />} />
+          <Route path="/compare" element={<ComparePage />} />
           <Route path="/life-management" element={<LifeManagementPage />} />
         </Routes>
       </Authenticated>
@@ -122,7 +129,9 @@ function HomePage() {
         <div className="grid md:grid-cols-2 gap-6">
           <Card className="text-left hover:shadow-md transition-shadow">
             <CardHeader>
-              <CardTitle className="text-xl font-semibold text-slate-900">AI Council Chat</CardTitle>
+              <CardTitle className="text-xl font-semibold text-slate-900">
+                AI Council Chat
+              </CardTitle>
               <CardDescription className="text-slate-600">
                 Engage with multiple AI agents in collaborative discussions and get diverse
                 perspectives on your queries.

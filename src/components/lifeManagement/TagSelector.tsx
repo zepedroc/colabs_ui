@@ -77,7 +77,9 @@ export function TagChips({
             type="button"
             onClick={() => onToggle(tag._id)}
             className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
-              selectedTagIds.includes(tag._id) ? "ring-2 ring-offset-1" : "opacity-60 hover:opacity-100"
+              selectedTagIds.includes(tag._id)
+                ? "ring-2 ring-offset-1"
+                : "opacity-60 hover:opacity-100"
             }`}
             style={{
               backgroundColor: selectedTagIds.includes(tag._id) ? tag.color : `${tag.color}33`,

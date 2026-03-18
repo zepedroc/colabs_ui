@@ -8,6 +8,8 @@ export const DEFAULT_COUNCIL_MODELS = [
   "nvidia/nemotron-3-nano-30b-a3b:free",
 ];
 
+export const DEFAULT_ORCHESTRATOR_MODEL = DEFAULT_COUNCIL_MODELS[0];
+
 /**
  * Get council models from env or defaults.
  * COUNCIL_MODELS: JSON array or comma-separated string.
@@ -34,4 +36,8 @@ export function getCouncilModels(): string[] {
     .map((m) => m.trim())
     .filter(Boolean);
   return models.length > 0 ? models : [...DEFAULT_COUNCIL_MODELS];
+}
+
+export function getDefaultOrchestratorModel(): string {
+  return DEFAULT_ORCHESTRATOR_MODEL;
 }

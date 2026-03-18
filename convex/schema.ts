@@ -28,12 +28,28 @@ const applicationTables = {
     content: v.string(),
     role: v.union(v.literal("user"), v.literal("assistant")),
     sessionId: v.string(),
+    generationMode: v.optional(v.union(v.literal("answer"), v.literal("coding"))),
+    // Preferred metric fields.
+    promptTokens: v.optional(v.number()),
+    completionTokens: v.optional(v.number()),
+    totalTokens: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
+    latencyMs: v.optional(v.number()),
+    // Legacy metric fields kept for backward compatibility with existing documents.
+    usagePromptTokens: v.optional(v.number()),
+    usageCompletionTokens: v.optional(v.number()),
+    responseTimeMs: v.optional(v.number()),
+    chartSpec: v.optional(v.any()),
     source: v.optional(
       v.union(
         v.literal("user"),
         v.literal("council_round"),
         v.literal("council_final"),
         v.literal("council_error"),
+        v.literal("research_orchestrator"),
+        v.literal("research_council"),
+        v.literal("research_final"),
+        v.literal("research_error"),
         // Legacy values (kept for backward compatibility with existing documents)
         v.literal("fastapi_round"),
         v.literal("fastapi_final"),
@@ -42,7 +58,10 @@ const applicationTables = {
     ),
     round: v.optional(v.number()),
     model: v.optional(v.string()),
-  }).index("by_session", ["sessionId"]),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_user", ["userId"])
+    .index("by_user_and_session", ["userId", "sessionId"]),
 
   benchmarkRuns: defineTable({
     userId: v.id("users"),

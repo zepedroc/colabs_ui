@@ -244,7 +244,9 @@ export function KanbanBoard() {
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   const [collapsingGroups, setCollapsingGroups] = useState<Record<string, boolean>>({});
   const collapseTimeoutRef = useRef<Record<string, number>>({});
-  const [newlyAddedTaskIds, setNewlyAddedTaskIds] = useState<Set<Id<"lifeManagementTasks">>>(new Set());
+  const [newlyAddedTaskIds, setNewlyAddedTaskIds] = useState<Set<Id<"lifeManagementTasks">>>(
+    new Set(),
+  );
 
   const tasks = useQuery(api.lifeManagement.listTasks) ?? [];
   const tags = useQuery(api.lifeManagement.listTags) ?? [];
@@ -950,66 +952,66 @@ function KanbanColumn({
   const renderTaskCard = (task: Doc<"lifeManagementTasks">, isDragging: boolean) => {
     const isNew = newlyAddedTaskIds.has(task._id);
     return (
-    <Card
-      className={cn(
-        "cursor-grab rounded-2xl border border-white/80 bg-white/92 shadow-sm transition-[transform,box-shadow,border-color] active:cursor-grabbing hover:border-slate-300 hover:shadow-md",
-        isDragging && "scale-[1.02] shadow-xl ring-2 ring-primary/15",
-        isDone && "border-emerald-200/80 bg-white/88",
-        isNew && "animate-task-landed",
-      )}
-    >
-      <CardContent className="p-3 flex flex-col gap-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
-            {task.priority && (
-              <span
-                className="mr-2 flex items-center gap-1 text-[10px] font-medium uppercase"
-                style={{
-                  color: PRIORITY_CONFIG[task.priority]?.color ?? "#64748b",
+      <Card
+        className={cn(
+          "cursor-grab rounded-2xl border border-white/80 bg-white/92 shadow-sm transition-[transform,box-shadow,border-color] active:cursor-grabbing hover:border-slate-300 hover:shadow-md",
+          isDragging && "scale-[1.02] shadow-xl ring-2 ring-primary/15",
+          isDone && "border-emerald-200/80 bg-white/88",
+          isNew && "animate-task-landed",
+        )}
+      >
+        <CardContent className="p-3 flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              {task.priority && (
+                <span
+                  className="mr-2 flex items-center gap-1 text-[10px] font-medium uppercase"
+                  style={{
+                    color: PRIORITY_CONFIG[task.priority]?.color ?? "#64748b",
+                  }}
+                >
+                  {(() => {
+                    const { icon: Icon } = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.low;
+                    return <Icon className="h-3 w-3 shrink-0" />;
+                  })()}
+                  {task.priority}
+                </span>
+              )}
+              <span className="block text-sm line-clamp-2 wrap-break-word text-slate-800">
+                {task.title}
+              </span>
+              {task.description && (
+                <p className="mt-1 text-xs line-clamp-2 text-slate-500">{task.description}</p>
+              )}
+            </div>
+            <div className="flex shrink-0 gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-500 hover:text-primary"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenEditDialog(task);
                 }}
               >
-                {(() => {
-                  const { icon: Icon } = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG.low;
-                  return <Icon className="h-3 w-3 shrink-0" />;
-                })()}
-                {task.priority}
-              </span>
-            )}
-            <span className="block text-sm line-clamp-2 wrap-break-word text-slate-800">
-              {task.title}
-            </span>
-            {task.description && (
-              <p className="mt-1 text-xs line-clamp-2 text-slate-500">{task.description}</p>
-            )}
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-slate-500 hover:text-red-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDeleteTask(task._id);
+                }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <div className="flex shrink-0 gap-0.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-slate-500 hover:text-primary"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenEditDialog(task);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 text-slate-500 hover:text-red-600"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDeleteTask(task._id);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -1127,24 +1129,25 @@ function KanbanColumn({
                                       activeDrag?.sourceStatus === column.id &&
                                       activeDrag.sourceGroupId !== group.id;
                                     const baseStyle = provided.draggableProps.style;
-                                    const draggableStyle: React.CSSProperties = shouldKeepSourceSpace
-                                      ? {
-                                          ...baseStyle,
-                                          position: "static",
-                                          top: "auto",
-                                          left: "auto",
-                                          transform: "none",
-                                          transition: "none",
-                                          opacity: 0,
-                                          pointerEvents: "none",
-                                        }
-                                      : shouldFreezeInPlace
+                                    const draggableStyle: React.CSSProperties =
+                                      shouldKeepSourceSpace
                                         ? {
                                             ...baseStyle,
+                                            position: "static",
+                                            top: "auto",
+                                            left: "auto",
                                             transform: "none",
                                             transition: "none",
+                                            opacity: 0,
+                                            pointerEvents: "none",
                                           }
-                                        : (baseStyle as React.CSSProperties);
+                                        : shouldFreezeInPlace
+                                          ? {
+                                              ...baseStyle,
+                                              transform: "none",
+                                              transition: "none",
+                                            }
+                                          : (baseStyle as React.CSSProperties);
 
                                     return (
                                       <div

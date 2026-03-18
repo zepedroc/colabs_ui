@@ -1,6 +1,6 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
-@plugin '@tailwindcss/typography';
+@plugin "@tailwindcss/typography";
 
 @theme {
   --color-primary: #0d9488;
@@ -62,12 +62,7 @@
 
 body {
   font-family:
-    "Plus Jakarta Sans",
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
+    "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
   color: var(--color-dark);
   background: var(--color-background);
@@ -103,7 +98,8 @@ body {
 .prose-agent blockquote {
   @apply border-l-4 border-slate-300 pl-4 italic text-slate-600;
 }
-.prose-agent ul, .prose-agent ol {
+.prose-agent ul,
+.prose-agent ol {
   @apply space-y-1 pl-5;
 }
 .prose-agent li {
@@ -117,6 +113,19 @@ body {
 }
 .prose-agent p:last-child {
   @apply mb-0;
+}
+.prose-agent table {
+  @apply w-full border-collapse my-3 text-sm;
+}
+.prose-agent th,
+.prose-agent td {
+  @apply border border-slate-300 px-3 py-2 text-left;
+}
+.prose-agent th {
+  @apply bg-slate-100 font-semibold text-slate-800;
+}
+.prose-agent tr:nth-child(even) {
+  @apply bg-slate-50/50;
 }
 
 @keyframes task-landed-glow {
@@ -143,14 +152,53 @@ body {
 }
 
 @keyframes task-landed-bg {
-  0% { background-color: #f0fdfa; }
-  50% { background-color: #f0fdfa; }
-  100% { background-color: rgba(255, 255, 255, 0.92); }
+  0% {
+    background-color: #f0fdfa;
+  }
+  50% {
+    background-color: #f0fdfa;
+  }
+  100% {
+    background-color: rgba(255, 255, 255, 0.92);
+  }
 }
 
 .animate-task-landed {
-  animation: task-landed-glow 2s cubic-bezier(0.2, 0.8, 0.2, 1),
-             task-landed-bg 2s ease-out;
+  animation:
+    task-landed-glow 2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    task-landed-bg 2s ease-out;
   z-index: 10;
   position: relative;
+}
+
+@keyframes float-orb {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(6px, -8px) scale(1.02);
+  }
+  66% {
+    transform: translate(-4px, 4px) scale(0.98);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-float-orb {
+  animation: float-orb 4s ease-in-out infinite;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.5s ease-out forwards;
 }

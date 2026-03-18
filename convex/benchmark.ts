@@ -3,9 +3,9 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
-import { getCouncilModels } from "./aiConfig";
 import { runBenchmarkStream } from "./benchmarkLogic";
 import benchmarkQuestions from "./benchmarks/questions.json";
+import { getDefaultModels } from "./models";
 import { getOpenRouterApiKey } from "./openrouterConfig";
 
 const benchmarkAnswerStatus = v.union(
@@ -28,10 +28,15 @@ const benchmarkModelResult = v.object({
   finalParseError: v.optional(v.union(v.string(), v.null())),
 });
 
+const modelsValidator = v.array(v.string());
+
+const TOTAL_QUESTIONS = (benchmarkQuestions as unknown[]).length;
+
 export const startBenchmark = mutation({
   args: {
-    name: v.string(),
-    filePath: v.optional(v.string()),
+    models: v.optional(modelsValidator),
+    numQuestions: v.optional(v.number()),
+    rounds: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -39,21 +44,38 @@ export const startBenchmark = mutation({
       throw new Error("Not authenticated");
     }
 
+    const numQuestions = Math.min(
+      Math.max(1, args.numQuestions ?? TOTAL_QUESTIONS),
+      TOTAL_QUESTIONS,
+    );
+    const rounds = Math.min(Math.max(1, args.rounds ?? 2), 10);
+
     const benchmarkId = await ctx.db.insert("benchmarkRuns", {
       userId,
-      name: args.name,
+      name: `Benchmark (${numQuestions} questions, ${rounds} rounds)`,
       status: "running",
       startTime: Date.now(),
-      filePath: args.filePath,
     });
+
+    const models =
+      args.models && args.models.length >= 3 ? args.models.slice(0, 3) : getDefaultModels();
 
     await ctx.scheduler.runAfter(0, internal.benchmark.runBenchmark, {
       benchmarkId,
       userId,
-      filePath: args.filePath,
+      models,
+      numQuestions,
+      rounds,
     });
 
     return benchmarkId;
+  },
+});
+
+export const getTotalQuestions = query({
+  args: {},
+  handler: async () => {
+    return TOTAL_QUESTIONS;
   },
 });
 
@@ -187,22 +209,25 @@ export const runBenchmark = internalAction({
   args: {
     benchmarkId: v.id("benchmarkRuns"),
     userId: v.id("users"),
-    filePath: v.optional(v.string()),
+    models: v.array(v.string()),
+    numQuestions: v.number(),
+    rounds: v.number(),
   },
   handler: async (ctx, args) => {
     try {
       const apiKey = getOpenRouterApiKey();
-      const models = getCouncilModels();
+      const models = args.models;
 
-      const cases = benchmarkQuestions as Array<{
+      const allCases = benchmarkQuestions as Array<{
         question: string;
         options: Record<string, string>;
         expected_option: string;
       }>;
+      const cases = allCases.slice(0, args.numQuestions);
 
       let hasSummary = false;
 
-      for await (const line of runBenchmarkStream(apiKey, models, cases, 2, "parallel")) {
+      for await (const line of runBenchmarkStream(apiKey, models, cases, args.rounds, "parallel")) {
         const trimmed = line.trim();
         if (!trimmed) continue;
 

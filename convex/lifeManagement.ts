@@ -2,8 +2,8 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 const taskStatus = v.union(v.literal("todo"), v.literal("in_progress"), v.literal("done"));
 
@@ -39,14 +39,18 @@ async function getOwnedTagsInOrder(
   }
 
   const tags = await Promise.all(tagIds.map((tagId) => ctx.db.get(tagId)));
-  return tags.filter((tag): tag is Doc<"lifeManagementTags"> => Boolean(tag && tag.userId === userId));
+  return tags.filter((tag): tag is Doc<"lifeManagementTags"> =>
+    Boolean(tag && tag.userId === userId),
+  );
 }
 
 function shouldLaunchCursorAutomation(
   status: "todo" | "in_progress" | "done",
   tags: Array<Doc<"lifeManagementTags">>,
 ): boolean {
-  return status === "todo" && normalizeTagName(tags[0]?.name ?? "") === CURSOR_AUTOMATION_GROUP_NAME;
+  return (
+    status === "todo" && normalizeTagName(tags[0]?.name ?? "") === CURSOR_AUTOMATION_GROUP_NAME
+  );
 }
 
 // --- Tags ---
@@ -344,10 +348,7 @@ export const addIdea = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    const order =
-      existing.length > 0
-        ? Math.max(...existing.map((i) => i.order ?? 0), -1) + 1
-        : 0;
+    const order = existing.length > 0 ? Math.max(...existing.map((i) => i.order ?? 0), -1) + 1 : 0;
 
     return await ctx.db.insert("lifeManagementIdeas", {
       userId,
@@ -460,10 +461,7 @@ export const addPain = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
-    const order =
-      existing.length > 0
-        ? Math.max(...existing.map((p) => p.order ?? 0), -1) + 1
-        : 0;
+    const order = existing.length > 0 ? Math.max(...existing.map((p) => p.order ?? 0), -1) + 1 : 0;
 
     return await ctx.db.insert("lifeManagementPains", {
       userId,

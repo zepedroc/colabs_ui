@@ -1,7 +1,8 @@
 const CURSOR_AGENT_REPOSITORY = "https://github.com/zepedroc/colabs_ui";
 
 function getEnv(name: string): string | undefined {
-  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env;
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env;
   return env?.[name]?.trim();
 }
 
