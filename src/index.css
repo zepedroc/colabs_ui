@@ -202,3 +202,23 @@ body {
 .animate-fade-in-up {
   animation: fade-in-up 0.5s ease-out forwards;
 }
+
+/* Kanban column scrollbar - subtle, rounded, visible on hover */
+.kanban-column-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.kanban-column-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+.kanban-column-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.kanban-column-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.kanban-column-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}

@@ -526,7 +526,7 @@ export function KanbanBoard() {
   return (
     <>
       <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-        <div className="flex gap-4 w-full min-w-0 pb-4">
+        <div className="flex gap-4 w-full min-w-0 flex-1 min-h-0 overflow-hidden pb-4">
           {COLUMNS.map((column) => (
             <KanbanColumn
               key={column.id}
@@ -1015,8 +1015,8 @@ function KanbanColumn({
   };
 
   return (
-    <div className="flex-1 min-w-0 flex flex-col">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.16em] text-slate-700 px-1">
+    <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+      <h3 className="mb-3 shrink-0 text-sm font-semibold uppercase tracking-[0.16em] text-slate-700 px-1">
         {column.title}
       </h3>
       <Droppable
@@ -1037,7 +1037,7 @@ function KanbanColumn({
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={cn(
-              "flex-1 min-h-[220px] rounded-[1.75rem] border p-3 transition-all",
+              "flex-1 min-h-0 overflow-y-auto rounded-[1.75rem] border p-3 transition-all kanban-column-scroll",
               isDone ? "bg-emerald-50/80 border-emerald-200" : "bg-slate-50/90 border-slate-200",
               snapshot.isDraggingOver && "border-primary/40",
             )}
