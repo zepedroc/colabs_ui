@@ -82,6 +82,11 @@ export const appendAssistantMessage = internalMutation({
     userId: v.id("users"),
     sessionId: v.string(),
     content: v.string(),
+    promptTokens: v.optional(v.number()),
+    completionTokens: v.optional(v.number()),
+    totalTokens: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
+    latencyMs: v.optional(v.number()),
     source: v.union(
       v.literal("council_round"),
       v.literal("council_final"),
@@ -104,6 +109,11 @@ export const appendAssistantMessage = internalMutation({
       source: args.source,
       round: args.round,
       model: args.model,
+      promptTokens: args.promptTokens,
+      completionTokens: args.completionTokens,
+      totalTokens: args.totalTokens,
+      costUsd: args.costUsd,
+      latencyMs: args.latencyMs,
       chartSpec: args.chartSpec,
     });
   },
@@ -153,12 +163,29 @@ export const runCouncilQuery = internalAction({
           content?: string | null;
           error?: string | null;
           chartSpec?: unknown;
+          promptTokens?: number;
+          completionTokens?: number;
+          totalTokens?: number;
+          costUsd?: number;
+          latencyMs?: number;
           data?: {
             responses?: Array<{
               model?: string;
               content?: string | null;
               error?: string | null;
               chartSpec?: unknown;
+              metrics?: {
+                promptTokens?: number;
+                completionTokens?: number;
+                totalTokens?: number;
+                costUsd?: number;
+                latencyMs?: number;
+              };
+              promptTokens?: number;
+              completionTokens?: number;
+              totalTokens?: number;
+              costUsd?: number;
+              latencyMs?: number;
             }>;
           };
         };
@@ -178,6 +205,11 @@ export const runCouncilQuery = internalAction({
             source: "council_round",
             round: event.round,
             model: event.model,
+            promptTokens: event.promptTokens,
+            completionTokens: event.completionTokens,
+            totalTokens: event.totalTokens,
+            costUsd: event.costUsd,
+            latencyMs: event.latencyMs,
             chartSpec: event.chartSpec,
           });
           continue;
@@ -187,6 +219,7 @@ export const runCouncilQuery = internalAction({
           const responses = event.data?.responses ?? [];
           if (responses.length === 0) continue;
           for (const modelResponse of responses) {
+            const responseMetrics = modelResponse.metrics;
             await ctx.runMutation(internal.chat.appendAssistantMessage, {
               userId: args.userId as Id<"users">,
               sessionId: args.sessionId,
@@ -197,6 +230,11 @@ export const runCouncilQuery = internalAction({
                   : modelResponse.content || "(no content)"),
               source: "council_final",
               model: modelResponse.model,
+              promptTokens: modelResponse.promptTokens ?? responseMetrics?.promptTokens,
+              completionTokens: modelResponse.completionTokens ?? responseMetrics?.completionTokens,
+              totalTokens: modelResponse.totalTokens ?? responseMetrics?.totalTokens,
+              costUsd: modelResponse.costUsd ?? responseMetrics?.costUsd,
+              latencyMs: modelResponse.latencyMs ?? responseMetrics?.latencyMs,
               chartSpec: modelResponse.chartSpec,
             });
           }
@@ -211,6 +249,11 @@ export const runCouncilQuery = internalAction({
             source: "research_orchestrator",
             round: event.round,
             model: event.model || args.orchestratorModel,
+            promptTokens: event.promptTokens,
+            completionTokens: event.completionTokens,
+            totalTokens: event.totalTokens,
+            costUsd: event.costUsd,
+            latencyMs: event.latencyMs,
           });
           continue;
         }
@@ -225,6 +268,11 @@ export const runCouncilQuery = internalAction({
             source: "research_council",
             round: event.round,
             model: event.model,
+            promptTokens: event.promptTokens,
+            completionTokens: event.completionTokens,
+            totalTokens: event.totalTokens,
+            costUsd: event.costUsd,
+            latencyMs: event.latencyMs,
             chartSpec: event.chartSpec,
           });
           continue;
@@ -238,6 +286,11 @@ export const runCouncilQuery = internalAction({
             content: `Research final · ${event.model ?? "orchestrator"}\n${body}`,
             source: "research_final",
             model: event.model || args.orchestratorModel,
+            promptTokens: event.promptTokens,
+            completionTokens: event.completionTokens,
+            totalTokens: event.totalTokens,
+            costUsd: event.costUsd,
+            latencyMs: event.latencyMs,
           });
           continue;
         }

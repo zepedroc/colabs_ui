@@ -1,7 +1,13 @@
 import { Ban, Check, ChevronDown, Star } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useFreeModels } from "@/hooks/useFreeModels";
 import { useModelPreferences } from "@/hooks/useModelPreferences";
 import { cn } from "@/lib/utils";
@@ -12,9 +18,7 @@ const DEFAULT_MODELS = [
   "nvidia/nemotron-3-nano-30b-a3b:free",
 ];
 
-export type ModelSelectorProps = {
-  value: [string, string, string];
-  onChange: (models: [string, string, string]) => void;
+export type ModelSelectorPropsBase = {
   disabled?: boolean;
   /** When "down", dropdown opens below the button. Default "up" opens above. */
   dropdownPosition?: "up" | "down";
@@ -27,16 +31,32 @@ export type SingleModelSelectorProps = {
   label?: string;
 };
 
+export type ModelSelectorProps2 = ModelSelectorPropsBase & {
+  count: 2;
+  value: [string, string];
+  onChange: (models: [string, string]) => void;
+};
+
+export type ModelSelectorProps3 = ModelSelectorPropsBase & {
+  count?: 3;
+  value: [string, string, string];
+  onChange: (models: [string, string, string]) => void;
+};
+
+export type ModelSelectorProps = ModelSelectorProps2 | ModelSelectorProps3;
+
 /**
- * Multi-select for exactly 3 free OpenRouter models.
- * Ensures 3 distinct models are always selected.
+ * Multi-select for exactly 2 or 3 free OpenRouter models.
+ * Ensures the target count of distinct models are always selected.
  */
 export function ModelSelector({
   value,
   onChange,
   disabled,
   dropdownPosition = "up",
+  count = 3,
 }: ModelSelectorProps) {
+  const targetCount = count;
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { models, loading, error } = useFreeModels();
@@ -46,43 +66,44 @@ export function ModelSelector({
     (modelId: string) => {
       const selected = new Set(value);
       if (selected.has(modelId)) {
-        if (selected.size <= 3) return;
+        if (selected.size <= targetCount) return;
         selected.delete(modelId);
       } else {
-        if (selected.size >= 3) {
+        if (selected.size >= targetCount) {
           selected.delete(value[0]);
         }
         selected.add(modelId);
       }
-      const next = Array.from(selected) as [string, string, string];
-      if (next.length === 3) {
-        onChange(next);
+      const next = Array.from(selected);
+      if (next.length === targetCount) {
+        (onChange as (models: string[]) => void)(next);
       }
     },
-    [value, onChange],
+    [value, onChange, targetCount],
   );
 
-  // Ensure we always have exactly 3 valid models
+  // Ensure we always have exactly targetCount valid models
   const selected = value;
-  const ensureThree = useCallback(() => {
+  const ensureCount = useCallback(() => {
     const freeIds = new Set(models.map((m) => m.id));
     const current = [...selected];
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < targetCount; i++) {
       if (!current[i] || !freeIds.has(current[i])) {
         const fallback = DEFAULT_MODELS[i] ?? models[0]?.id ?? "";
         current[i] = freeIds.has(fallback) ? fallback : (models[i]?.id ?? "");
       }
     }
-    if (current[0] !== selected[0] || current[1] !== selected[1] || current[2] !== selected[2]) {
-      onChange(current as [string, string, string]);
+    const changed = current.some((c, i) => c !== selected[i]);
+    if (changed) {
+      (onChange as (models: string[]) => void)(current);
     }
-  }, [models, selected, onChange]);
+  }, [models, selected, onChange, targetCount]);
 
   useEffect(() => {
     if (models.length > 0) {
-      ensureThree();
+      ensureCount();
     }
-  }, [models.length, ensureThree]);
+  }, [models.length, ensureCount]);
 
   useEffect(() => {
     if (!open) return;
@@ -100,7 +121,9 @@ export function ModelSelector({
     name: string;
   }[];
   const displayText =
-    selectedModels.length === 3 ? selectedModels.map((m) => m.name).join(", ") : "Select 3 models";
+    selectedModels.length === targetCount
+      ? selectedModels.map((m) => m.name).join(", ")
+      : `Select ${targetCount} models`;
 
   if (loading) {
     return (

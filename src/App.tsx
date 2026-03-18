@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { api } from "../convex/_generated/api";
 import { BenchmarkPage } from "./BenchmarkPage";
 import { ChatPage } from "./ChatPage";
+import { ComparePage } from "./ComparePage";
 import { LifeManagementPage } from "./LifeManagementPage";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
@@ -32,6 +33,13 @@ export default function App() {
                   {({ isActive }) => (
                     <Button variant={isActive ? "default" : "ghost"} size="sm">
                       Benchmark
+                    </Button>
+                  )}
+                </NavLink>
+                <NavLink to="/compare">
+                  {({ isActive }) => (
+                    <Button variant={isActive ? "default" : "ghost"} size="sm">
+                      Compare
                     </Button>
                   )}
                 </NavLink>
@@ -74,6 +82,7 @@ function Content() {
           <Route path="/" element={<HomePage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/benchmark" element={<BenchmarkPage />} />
+          <Route path="/compare" element={<ComparePage />} />
           <Route path="/life-management" element={<LifeManagementPage />} />
         </Routes>
       </Authenticated>

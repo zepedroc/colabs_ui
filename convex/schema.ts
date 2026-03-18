@@ -28,6 +28,16 @@ const applicationTables = {
     content: v.string(),
     role: v.union(v.literal("user"), v.literal("assistant")),
     sessionId: v.string(),
+    // Preferred metric fields.
+    promptTokens: v.optional(v.number()),
+    completionTokens: v.optional(v.number()),
+    totalTokens: v.optional(v.number()),
+    costUsd: v.optional(v.number()),
+    latencyMs: v.optional(v.number()),
+    // Legacy metric fields kept for backward compatibility with existing documents.
+    usagePromptTokens: v.optional(v.number()),
+    usageCompletionTokens: v.optional(v.number()),
+    responseTimeMs: v.optional(v.number()),
     chartSpec: v.optional(v.any()),
     source: v.optional(
       v.union(

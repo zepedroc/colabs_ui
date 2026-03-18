@@ -5,7 +5,7 @@
 
 import type { ChartSpec } from "./agentTools";
 import { AGENT_TOOLS } from "./agentTools";
-import { type ChatMessage, sendQuery, sendQueryWithTools } from "./openrouter";
+import { type ChatMessage, type ResponseMetrics, sendQuery, sendQueryWithTools } from "./openrouter";
 
 export type CouncilMode = "parallel" | "conversation";
 
@@ -14,6 +14,7 @@ export interface ModelResponse {
   content: string | null;
   error: string | null;
   chartSpec?: ChartSpec | null;
+  metrics?: ResponseMetrics;
 }
 
 export interface CouncilResponse {
@@ -85,16 +86,16 @@ async function querySingleModel(
 ): Promise<ModelResponse> {
   try {
     if (toolsEnabled) {
-      const { content, chartSpec } = await sendQueryWithTools(
+      const { content, chartSpec, metrics } = await sendQueryWithTools(
         apiKey,
         model,
         messages as Array<{ role: "system" | "user" | "assistant"; content: string }>,
         AGENT_TOOLS,
       );
-      return { model, content, error: null, chartSpec: chartSpec ?? undefined };
+      return { model, content, error: null, chartSpec: chartSpec ?? undefined, metrics };
     }
-    const content = await sendQuery(apiKey, model, messages);
-    return { model, content, error: null };
+    const { content, metrics } = await sendQuery(apiKey, model, messages);
+    return { model, content, error: null, metrics };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     return { model, content: null, error };
@@ -412,6 +413,7 @@ async function* runResearchRoundParallel(
         content: response.content,
         error: response.error,
         chartSpec: response.chartSpec,
+        metrics: response.metrics,
       },
       prompt,
       index,
@@ -470,6 +472,7 @@ async function* runRoundParallel(
         content: response.content,
         error: response.error,
         chartSpec: response.chartSpec,
+        metrics: response.metrics,
       },
       prompt,
       index,
@@ -548,6 +551,11 @@ function roundResponseEvent(roundNumber: number, response: ModelResponse): strin
     content: response.content,
     error: response.error,
     chartSpec: response.chartSpec,
+    promptTokens: response.metrics?.promptTokens,
+    completionTokens: response.metrics?.completionTokens,
+    totalTokens: response.metrics?.totalTokens,
+    costUsd: response.metrics?.costUsd,
+    latencyMs: response.metrics?.latencyMs,
   })}\n`;
 }
 
@@ -657,11 +665,14 @@ export async function* queryResearchCouncilStream(
       );
 
       let orchestratorRaw = "";
+      let orchestratorMetrics: ResponseMetrics | undefined;
       try {
-        orchestratorRaw = await sendQuery(apiKey, safeOrchestrator, [
+        const orchestratorResult = await sendQuery(apiKey, safeOrchestrator, [
           { role: "system", content: RESEARCH_ORCHESTRATOR_SYSTEM_PROMPT },
           { role: "user", content: planningPrompt },
         ]);
+        orchestratorRaw = orchestratorResult.content;
+        orchestratorMetrics = orchestratorResult.metrics;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         yield `${JSON.stringify({ type: "research_error", error: message })}\n`;
@@ -676,6 +687,11 @@ export async function* queryResearchCouncilStream(
         round: roundNumber,
         model: safeOrchestrator,
         content: orchestratorMessage,
+        promptTokens: orchestratorMetrics?.promptTokens,
+        completionTokens: orchestratorMetrics?.completionTokens,
+        totalTokens: orchestratorMetrics?.totalTokens,
+        costUsd: orchestratorMetrics?.costUsd,
+        latencyMs: orchestratorMetrics?.latencyMs,
       })}\n`;
 
       if (roundNumber > 1 && decision.decision === "stop") {
@@ -701,6 +717,11 @@ export async function* queryResearchCouncilStream(
           content: response.content,
           error: response.error,
           chartSpec: response.chartSpec,
+          promptTokens: response.metrics?.promptTokens,
+          completionTokens: response.metrics?.completionTokens,
+          totalTokens: response.metrics?.totalTokens,
+          costUsd: response.metrics?.costUsd,
+          latencyMs: response.metrics?.latencyMs,
         })}\n`;
       }
 
@@ -714,8 +735,9 @@ export async function* queryResearchCouncilStream(
 
     let finalContent: string | null = null;
     let finalError: string | null = null;
+    let finalMetrics: ResponseMetrics | undefined;
     try {
-      finalContent = await sendQuery(apiKey, safeOrchestrator, [
+      const finalResult = await sendQuery(apiKey, safeOrchestrator, [
         {
           role: "system",
           content:
@@ -723,6 +745,8 @@ export async function* queryResearchCouncilStream(
         },
         { role: "user", content: buildResearchFinalPrompt(query, rounds) },
       ]);
+      finalContent = finalResult.content;
+      finalMetrics = finalResult.metrics;
     } catch (error) {
       finalError = error instanceof Error ? error.message : String(error);
     }
@@ -732,6 +756,11 @@ export async function* queryResearchCouncilStream(
       model: safeOrchestrator,
       content: finalContent,
       error: finalError,
+      promptTokens: finalMetrics?.promptTokens,
+      completionTokens: finalMetrics?.completionTokens,
+      totalTokens: finalMetrics?.totalTokens,
+      costUsd: finalMetrics?.costUsd,
+      latencyMs: finalMetrics?.latencyMs,
     })}\n`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

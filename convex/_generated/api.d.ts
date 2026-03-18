@@ -14,6 +14,7 @@ import type * as auth from "../auth.js";
 import type * as benchmark from "../benchmark.js";
 import type * as benchmarkLogic from "../benchmarkLogic.js";
 import type * as chat from "../chat.js";
+import type * as compare from "../compare.js";
 import type * as council from "../council.js";
 import type * as cursorAutomation from "../cursorAutomation.js";
 import type * as cursorAutomationConfig from "../cursorAutomationConfig.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   benchmark: typeof benchmark;
   benchmarkLogic: typeof benchmarkLogic;
   chat: typeof chat;
+  compare: typeof compare;
   council: typeof council;
   cursorAutomation: typeof cursorAutomation;
   cursorAutomationConfig: typeof cursorAutomationConfig;
