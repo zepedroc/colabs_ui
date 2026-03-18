@@ -18,6 +18,7 @@ import type * as compare from "../compare.js";
 import type * as council from "../council.js";
 import type * as cursorAutomation from "../cursorAutomation.js";
 import type * as cursorAutomationConfig from "../cursorAutomationConfig.js";
+import type * as generation from "../generation.js";
 import type * as http from "../http.js";
 import type * as lifeManagement from "../lifeManagement.js";
 import type * as models from "../models.js";
@@ -42,6 +43,7 @@ declare const fullApi: ApiFromModules<{
   council: typeof council;
   cursorAutomation: typeof cursorAutomation;
   cursorAutomationConfig: typeof cursorAutomationConfig;
+  generation: typeof generation;
   http: typeof http;
   lifeManagement: typeof lifeManagement;
   models: typeof models;

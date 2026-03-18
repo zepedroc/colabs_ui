@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { mutation } from "./_generated/server";
 import { getDefaultOrchestratorModel } from "./aiConfig";
+import { generationSettingsValidator, normalizeGenerationSettings } from "./generation";
 
 const modelsValidator = v.array(v.string());
 
@@ -11,6 +12,7 @@ export const sendMessage = mutation({
     content: v.string(),
     sessionId: v.string(),
     models: modelsValidator,
+    generation: v.optional(generationSettingsValidator),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -38,6 +40,7 @@ export const sendMessage = mutation({
       mode: "parallel",
       models: args.models,
       orchestratorModel: getDefaultOrchestratorModel(),
+      generation: normalizeGenerationSettings(args.generation),
     });
 
     return null;

@@ -5,6 +5,11 @@
 
 import type { ChartSpec } from "./agentTools";
 import { AGENT_TOOLS } from "./agentTools";
+import {
+  DEFAULT_GENERATION_SETTINGS,
+  type GenerationSettings,
+  normalizeGenerationSettings,
+} from "./generation";
 import { type ChatMessage, type ResponseMetrics, sendQuery, sendQueryWithTools } from "./openrouter";
 
 export type CouncilMode = "parallel" | "conversation";
@@ -22,9 +27,13 @@ export interface CouncilResponse {
   responses: ModelResponse[];
 }
 
-const COUNCIL_SYSTEM_PROMPT =
+const BASE_COUNCIL_SYSTEM_PROMPT =
   "You are part of an LLM council. Be concise, honest, and self-critical. " +
   "You have access to tools: evaluate_math (for calculations) and create_chart (for graphs). Use them when the user asks for math or visualizations.";
+
+const CODING_HTML_SYSTEM_PROMPT =
+  "You are in coding mode for visual output. Return one fenced html code block that is preview-ready. " +
+  "Prefer self-contained HTML and CSS, avoid external dependencies and JavaScript execution requirements.";
 
 const FIRST_ROUND_PROMPT_TEMPLATE =
   "You are a deep thinker in a multi-agent council.\n" +
@@ -102,6 +111,38 @@ async function querySingleModel(
   }
 }
 
+function buildCouncilSystemPrompt(generation: GenerationSettings): string {
+  if (generation.mode !== "coding") {
+    return BASE_COUNCIL_SYSTEM_PROMPT;
+  }
+
+  if (generation.artifact === "html") {
+    return `${BASE_COUNCIL_SYSTEM_PROMPT} ${CODING_HTML_SYSTEM_PROMPT}`;
+  }
+
+  return (
+    `${BASE_COUNCIL_SYSTEM_PROMPT} ` +
+    `You are in coding mode and should provide code targeting ${generation.artifact}.`
+  );
+}
+
+function buildGenerationPromptSuffix(generation: GenerationSettings): string {
+  if (generation.mode !== "coding") {
+    return "";
+  }
+
+  if (generation.artifact === "html") {
+    return (
+      "\n\nOutput requirements:\n" +
+      "- Include exactly one fenced code block labeled html.\n" +
+      "- Make the snippet preview-ready (semantic HTML + inline CSS when needed).\n" +
+      "- Keep a short explanation outside the code block."
+    );
+  }
+
+  return `\n\nOutput requirements: Provide code suitable for ${generation.artifact} in a fenced code block.`;
+}
+
 function formatOtherResponses(previousRound: ModelResponse[], currentModel: string): string {
   const lines = previousRound
     .filter((r) => r.model !== currentModel)
@@ -152,28 +193,33 @@ function buildRoundPrompt(
   mode: CouncilMode,
   allRounds: ModelResponse[][],
   currentRoundResponses: ModelResponse[] | null,
+  generation: GenerationSettings,
 ): string {
+  const generationSuffix = buildGenerationPromptSuffix(generation);
+
   if (totalRounds === 1) {
-    return FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", `User query: ${query}`);
+    return FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", `User query: ${query}`) + generationSuffix;
   }
   if (roundNumber === 1) {
-    return FIRST_ROUND_PROMPT_TEMPLATE.replace("{query}", query);
+    return FIRST_ROUND_PROMPT_TEMPLATE.replace("{query}", query) + generationSuffix;
   }
   if (roundNumber === totalRounds) {
     const context = formatContextWithCurrentRound(allRounds, roundNumber, currentRoundResponses);
-    return FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", context);
+    return FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", context) + generationSuffix;
   }
   if (mode === "conversation") {
     const context = formatContextWithCurrentRound(allRounds, roundNumber, currentRoundResponses);
-    return CONVERSATION_ROUND_PROMPT_TEMPLATE.replace("{context}", context).replace(
-      "{query}",
-      query,
+    return (
+      CONVERSATION_ROUND_PROMPT_TEMPLATE.replace("{context}", context).replace("{query}", query) +
+      generationSuffix
     );
   }
   const otherResponses = formatOtherResponses(allRounds[allRounds.length - 1] ?? [], model);
-  return MIDDLE_ROUND_PROMPT_TEMPLATE.replace("{other_responses}", otherResponses).replace(
-    "{query}",
-    query,
+  return (
+    MIDDLE_ROUND_PROMPT_TEMPLATE.replace("{other_responses}", otherResponses).replace(
+      "{query}",
+      query,
+    ) + generationSuffix
   );
 }
 
@@ -450,6 +496,7 @@ async function* runRoundParallel(
   allRounds: ModelResponse[][],
   modelHistories: Record<string, ChatMessage[]>,
   toolsEnabled: boolean,
+  generation: GenerationSettings,
 ): AsyncGenerator<ModelResponse> {
   type Wrapped = {
     p: Promise<{ response: ModelResponse; prompt: string; index: number }>;
@@ -464,6 +511,7 @@ async function* runRoundParallel(
       "parallel",
       allRounds,
       null,
+      generation,
     );
     const messages: ChatMessage[] = [...modelHistories[model], { role: "user", content: prompt }];
     const p = querySingleModel(apiKey, model, messages, toolsEnabled).then((response) => ({
@@ -506,6 +554,7 @@ async function runRoundConversation(
   allRounds: ModelResponse[][],
   modelHistories: Record<string, ChatMessage[]>,
   toolsEnabled: boolean,
+  generation: GenerationSettings,
 ): Promise<ModelResponse[]> {
   if (roundNumber === 1) {
     const results: ModelResponse[] = [];
@@ -518,6 +567,7 @@ async function runRoundConversation(
       allRounds,
       modelHistories,
       toolsEnabled,
+      generation,
     )) {
       results.push(response);
     }
@@ -534,6 +584,7 @@ async function runRoundConversation(
       "conversation",
       allRounds,
       roundResponses,
+      generation,
     );
     const messages: ChatMessage[] = [...modelHistories[model], { role: "user", content: prompt }];
     const response = await querySingleModel(apiKey, model, messages, toolsEnabled);
@@ -571,14 +622,16 @@ export async function* queryCouncilStream(
   rounds: number,
   mode: CouncilMode,
   toolsEnabled = false,
+  generation: GenerationSettings = DEFAULT_GENERATION_SETTINGS,
 ): AsyncGenerator<string> {
   if (rounds < 1) {
     throw new Error("rounds must be >= 1");
   }
 
+  const normalizedGeneration = normalizeGenerationSettings(generation);
   const modelHistories: Record<string, ChatMessage[]> = {};
   for (const model of models) {
-    modelHistories[model] = [{ role: "system", content: COUNCIL_SYSTEM_PROMPT }];
+    modelHistories[model] = [{ role: "system", content: buildCouncilSystemPrompt(normalizedGeneration) }];
   }
 
   const allRounds: ModelResponse[][] = [];
@@ -597,6 +650,7 @@ export async function* queryCouncilStream(
         allRounds,
         modelHistories,
         toolsEnabled,
+        normalizedGeneration,
       )) {
         yield roundResponseEvent(roundNumber, response);
         roundResponses.push(response);
@@ -612,6 +666,7 @@ export async function* queryCouncilStream(
         allRounds,
         modelHistories,
         toolsEnabled,
+        normalizedGeneration,
       );
       for (const response of responses) {
         yield roundResponseEvent(roundNumber, response);

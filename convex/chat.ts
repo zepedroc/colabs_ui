@@ -5,6 +5,11 @@ import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, mutation, query } from "./_generated/server";
 import { getDefaultOrchestratorModel } from "./aiConfig";
 import { queryCouncilStream, queryResearchCouncilStream } from "./council";
+import {
+  generationSettingsValidator,
+  normalizeGenerationSettings,
+  type GenerationSettings,
+} from "./generation";
 import { getDefaultModels } from "./models";
 import { getOpenRouterApiKey } from "./openrouterConfig";
 
@@ -24,6 +29,7 @@ export const sendMessage = mutation({
     mode: councilMode,
     models: v.optional(modelsValidator),
     orchestratorModel: v.optional(v.string()),
+    generation: v.optional(generationSettingsValidator),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -43,6 +49,7 @@ export const sendMessage = mutation({
     const models =
       args.models && args.models.length >= 3 ? args.models.slice(0, 3) : getDefaultModels();
     const orchestratorModel = args.orchestratorModel?.trim() || getDefaultOrchestratorModel();
+    const generation = normalizeGenerationSettings(args.generation);
 
     await ctx.scheduler.runAfter(0, internal.chat.runCouncilQuery, {
       userId,
@@ -52,6 +59,7 @@ export const sendMessage = mutation({
       mode: args.mode,
       models,
       orchestratorModel,
+      generation,
     });
 
     return null;
@@ -128,6 +136,7 @@ export const runCouncilQuery = internalAction({
     mode: councilMode,
     models: v.array(v.string()),
     orchestratorModel: v.string(),
+    generation: generationSettingsValidator,
   },
   handler: async (ctx, args) => {
     try {
@@ -143,14 +152,10 @@ export const runCouncilQuery = internalAction({
               args.rounds,
               true,
             )
-          : queryCouncilStream(
-              apiKey,
-              models,
-              args.query,
-              args.rounds,
-              args.mode,
-              true,
-            );
+          : queryCouncilStream(apiKey, models, args.query, args.rounds, args.mode, true, {
+              mode: args.generation.mode,
+              artifact: args.generation.artifact,
+            } satisfies GenerationSettings);
 
       for await (const line of stream) {
         const trimmed = line.trim();

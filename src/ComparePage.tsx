@@ -1,12 +1,16 @@
 import { useMutation, useQuery } from "convex/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { ModelResponseBody, type ResponseViewMode } from "@/components/messages/ModelResponseBody";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ModelSelector } from "@/components/ModelSelector";
+import { extractMessageBody } from "@/lib/messages/extractMessageBody";
+import { extractRenderArtifacts } from "@/lib/messages/extractRenderArtifacts";
 import { api } from "../convex/_generated/api";
 import type { Doc } from "../convex/_generated/dataModel";
 
@@ -31,14 +35,6 @@ function LoadingCard({ modelName }: { modelName: string }) {
       </CardContent>
     </Card>
   );
-}
-
-function extractMessageBody(content: string): string {
-  const lines = content.split("\n");
-  if (lines.length > 1) {
-    return lines.slice(1).join("\n").trim() || content;
-  }
-  return content;
 }
 
 function formatTokens(msg: Doc<"chatMessages">): string {
@@ -166,6 +162,8 @@ const DEFAULT_COMPARE_MODELS: [string, string] = [
   "arcee-ai/trinity-large-preview:free",
 ];
 
+type CompareGenerationMode = "answer" | "coding";
+
 export function ComparePage() {
   const [message, setMessage] = useState("");
   const [sessionId, setSessionId] = useState(
@@ -173,6 +171,8 @@ export function ComparePage() {
   );
   const [selectedModels, setSelectedModels] =
     useState<[string, string]>(DEFAULT_COMPARE_MODELS);
+  const [generationMode, setGenerationMode] = useState<CompareGenerationMode>("answer");
+  const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>("response");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -201,6 +201,10 @@ export function ComparePage() {
         content: query,
         sessionId,
         models: selectedModels,
+        generation: {
+          mode: generationMode,
+          artifact: generationMode === "coding" ? "html" : "none",
+        },
       });
     } catch (error) {
       setRequestError(error instanceof Error ? error.message : "Failed to send message.");
@@ -226,10 +230,50 @@ export function ComparePage() {
     return !isFinalSameAsLastRound(group, lastRound ?? null);
   });
 
+  const hasHtmlPreview = useMemo(() => {
+    const latestRenderableGroup = [...filteredGroups]
+      .reverse()
+      .find((group) => group.type !== "user");
+    if (!latestRenderableGroup) return false;
+    return latestRenderableGroup.messages.some((msg) =>
+      extractRenderArtifacts(extractMessageBody(msg.content)).some(
+        (artifact) => artifact.kind === "html",
+      ),
+    );
+  }, [filteredGroups]);
+
+  useEffect(() => {
+    if (!hasHtmlPreview && responseViewMode === "preview") {
+      setResponseViewMode("response");
+    }
+  }, [hasHtmlPreview, responseViewMode]);
+
   const startNewCompare = () => {
     setSessionId(`compare-${Date.now()}-${Math.random()}`);
     setRequestError(null);
   };
+
+  const responseViewToggle = (
+    <div className="flex justify-center">
+      <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm">
+        <span className="text-xs font-medium text-slate-600">View</span>
+        <Tabs value={responseViewMode} onValueChange={(value) => setResponseViewMode(value as ResponseViewMode)}>
+          <TabsList className="h-8 p-1">
+            <TabsTrigger value="response" className="px-3 py-1 text-xs" disabled={isSubmitting}>
+              Response
+            </TabsTrigger>
+            <TabsTrigger
+              value="preview"
+              className="px-3 py-1 text-xs"
+              disabled={isSubmitting || !hasHtmlPreview}
+            >
+              Preview
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+    </div>
+  );
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -316,9 +360,11 @@ export function ComparePage() {
                     group.type === "round"
                       ? `round-${group.round}`
                       : `final-${group.messages.map((m) => m._id).join("-")}`;
+                  const showViewToggle = idx > 0 && filteredGroups[idx - 1]?.type === "user";
 
                   return (
                     <div key={groupKey} className="space-y-3">
+                      {showViewToggle ? responseViewToggle : null}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                         {slots.map(({ modelId, msg }) => {
                           if (!msg) {
@@ -329,7 +375,6 @@ export function ComparePage() {
                               />
                             );
                           }
-                          const body = extractMessageBody(msg.content);
                           return (
                             <div
                               key={msg._id}
@@ -346,10 +391,12 @@ export function ComparePage() {
                                   <MetricsInfo msg={msg} />
                                 </div>
                               </div>
-                              <div className="px-4 py-4 text-sm text-slate-800 prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                  {body}
-                                </ReactMarkdown>
+                              <div className="px-4 py-4 text-sm text-slate-800">
+                                <ModelResponseBody
+                                  content={msg.content}
+                                  viewMode={responseViewMode}
+                                  className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0"
+                                />
                               </div>
                             </div>
                           );
@@ -435,13 +482,33 @@ export function ComparePage() {
               onChange={setSelectedModels}
               disabled={isSubmitting}
             />
+            <div className="flex items-center gap-1.5 shrink-0 text-sm text-slate-600">
+              <span>Prompt:</span>
+              <Tabs
+                value={generationMode}
+                onValueChange={(value) => setGenerationMode(value as CompareGenerationMode)}
+              >
+                <TabsList className="h-9 p-1">
+                  <TabsTrigger value="answer" className="px-3 py-1 text-xs" disabled={isSubmitting}>
+                    Answer
+                  </TabsTrigger>
+                  <TabsTrigger value="coding" className="px-3 py-1 text-xs" disabled={isSubmitting}>
+                    Coding
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
           </div>
           <div className="flex gap-3">
             <Input
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Ask a question to compare..."
+              placeholder={
+                generationMode === "coding"
+                  ? "Ask for an HTML visualization to compare..."
+                  : "Ask a question to compare..."
+              }
               className="h-11 flex-1 min-w-0"
               disabled={isSubmitting}
             />
