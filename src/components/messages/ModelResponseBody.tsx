@@ -1,6 +1,5 @@
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
+import { MarkdownWithMath } from "@/components/MarkdownWithMath";
 import { extractMessageBody } from "@/lib/messages/extractMessageBody";
 import { extractRenderArtifacts } from "@/lib/messages/extractRenderArtifacts";
 import { SafeHtmlPreview } from "./SafeHtmlPreview";
@@ -31,7 +30,7 @@ export function ModelResponseBody({ content, viewMode, className }: ModelRespons
 
   return (
     <div className={cn(className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+      <MarkdownWithMath>{body}</MarkdownWithMath>
     </div>
   );
 }

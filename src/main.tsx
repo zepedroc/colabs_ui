@@ -2,6 +2,7 @@ import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { ConvexReactClient } from "convex/react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
+import "katex/dist/katex.min.css";
 import "./index.css";
 import App from "./App";
 

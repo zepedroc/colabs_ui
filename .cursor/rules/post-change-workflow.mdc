@@ -1,0 +1,11 @@
+---
+description: Run format and Convex dev after making changes
+alwaysApply: true
+---
+
+# Post-Change Workflow
+
+After making any code changes:
+
+1. **Always** run `npm run format` to format the codebase.
+2. **If the change involves Convex** (any file in `convex/` or files that import from Convex), also run `npx convex dev` to sync and validate the Convex backend.

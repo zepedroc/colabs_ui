@@ -1,8 +1,7 @@
-export type RenderArtifact =
-  | {
-      kind: "html";
-      content: string;
-    };
+export type RenderArtifact = {
+  kind: "html";
+  content: string;
+};
 
 function cleanFenceContent(content: string): string {
   return content.trim().replace(/^\uFEFF/, "");

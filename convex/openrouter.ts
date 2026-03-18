@@ -161,7 +161,10 @@ function extractResponseMetrics(payload: Record<string, unknown>): ResponseMetri
   };
 }
 
-function addMetricValue(base: number | undefined, increment: number | undefined): number | undefined {
+function addMetricValue(
+  base: number | undefined,
+  increment: number | undefined,
+): number | undefined {
   if (increment === undefined) return base;
   return (base ?? 0) + increment;
 }

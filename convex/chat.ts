@@ -307,7 +307,9 @@ export const runCouncilQuery = internalAction({
           await ctx.runMutation(internal.chat.appendAssistantMessage, {
             userId: args.userId as Id<"users">,
             sessionId: args.sessionId,
-            content: event.error ? `Research mode failed.\n${event.error}` : "Research mode failed.",
+            content: event.error
+              ? `Research mode failed.\n${event.error}`
+              : "Research mode failed.",
             source: "research_error",
           });
         }

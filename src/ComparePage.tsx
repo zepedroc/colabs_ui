@@ -1,8 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Info, Trash2 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownWithMath } from "@/components/MarkdownWithMath";
 import { ModelResponseBody, type ResponseViewMode } from "@/components/messages/ModelResponseBody";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -108,7 +107,9 @@ function MetricsInfo({ msg }: { msg: Doc<"chatMessages"> }) {
           </div>
           <div className="flex justify-between gap-3">
             <span>Response time</span>
-            <span className="font-medium text-slate-700">{formatLatency(getMessageLatency(msg))}</span>
+            <span className="font-medium text-slate-700">
+              {formatLatency(getMessageLatency(msg))}
+            </span>
           </div>
         </div>
       </div>
@@ -189,11 +190,8 @@ type CompareGenerationMode = "answer" | "coding";
 
 export function ComparePage() {
   const [message, setMessage] = useState("");
-  const [sessionId, setSessionId] = useState(
-    () => `compare-${Date.now()}-${Math.random()}`,
-  );
-  const [selectedModels, setSelectedModels] =
-    useState<[string, string]>(DEFAULT_COMPARE_MODELS);
+  const [sessionId, setSessionId] = useState(() => `compare-${Date.now()}-${Math.random()}`);
+  const [selectedModels, setSelectedModels] = useState<[string, string]>(DEFAULT_COMPARE_MODELS);
   const [generationMode, setGenerationMode] = useState<CompareGenerationMode>("answer");
   const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>("response");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -247,8 +245,7 @@ export function ComparePage() {
   };
 
   const groups = groupMessages(messages);
-  const isWaitingForResponses =
-    groups.length > 0 && groups[groups.length - 1].type === "user";
+  const isWaitingForResponses = groups.length > 0 && groups[groups.length - 1].type === "user";
   const currentSessionSummary = compareSessions.find((session) => session.sessionId === sessionId);
   const currentChatMode: CompareGenerationMode = useMemo(() => {
     const hasCodingUserPrompt = messages.some(
@@ -362,7 +359,10 @@ export function ComparePage() {
     <div className="flex justify-center">
       <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm">
         <span className="text-xs font-medium text-slate-600">View</span>
-        <Tabs value={responseViewMode} onValueChange={(value) => setResponseViewMode(value as ResponseViewMode)}>
+        <Tabs
+          value={responseViewMode}
+          onValueChange={(value) => setResponseViewMode(value as ResponseViewMode)}
+        >
           <TabsList className="h-8 p-1">
             <TabsTrigger value="response" className="px-3 py-1 text-xs" disabled={isSubmitting}>
               Response
@@ -459,263 +459,263 @@ export function ComparePage() {
 
       <div className="flex h-full min-h-0 flex-col lg:pl-[19rem]">
         <div className="flex-1 overflow-y-auto p-6 pb-40 min-h-0">
-        <div className="max-w-6xl mx-auto space-y-6">
-          {messages.length === 0 ? (
-            <div className="relative flex flex-col items-center justify-center min-h-[60vh] py-12 px-4 overflow-hidden">
-              <div
-                className="absolute inset-0 -z-10 opacity-[0.4]"
-                style={{
-                  backgroundImage: `radial-gradient(circle at 30% 40%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
+          <div className="max-w-6xl mx-auto space-y-6">
+            {messages.length === 0 ? (
+              <div className="relative flex flex-col items-center justify-center min-h-[60vh] py-12 px-4 overflow-hidden">
+                <div
+                  className="absolute inset-0 -z-10 opacity-[0.4]"
+                  style={{
+                    backgroundImage: `radial-gradient(circle at 30% 40%, rgba(14, 165, 233, 0.08) 0%, transparent 50%),
                     radial-gradient(circle at 70% 60%, rgba(20, 184, 166, 0.08) 0%, transparent 40%)`,
-                }}
-              />
-              <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight text-center mb-3">
-                Compare models side by side
-              </h2>
-              <p className="text-slate-600 text-center max-w-md mb-10">
-                Pick two models, ask a question, and see their responses appear as soon as each one
-                finishes.
-              </p>
-              <div className="flex flex-wrap justify-center gap-2 max-w-xl">
-                {[
-                  "Explain recursion with a simple example",
-                  "What are the best practices for REST API design?",
-                  "Compare TypeScript vs JavaScript",
-                ].map((prompt) => (
-                  <button
-                    key={prompt}
-                    type="button"
-                    onClick={() => setMessage(prompt)}
-                    className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-white/80 hover:bg-white border border-slate-200/80 hover:border-teal-300/60 hover:shadow-md transition-all duration-200 shadow-sm"
-                  >
-                    {prompt}
-                  </button>
-                ))}
+                  }}
+                />
+                <h2 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight text-center mb-3">
+                  Compare models side by side
+                </h2>
+                <p className="text-slate-600 text-center max-w-md mb-10">
+                  Pick two models, ask a question, and see their responses appear as soon as each
+                  one finishes.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 max-w-xl">
+                  {[
+                    "Explain recursion with a simple example",
+                    "What are the best practices for REST API design?",
+                    "Compare TypeScript vs JavaScript",
+                  ].map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => setMessage(prompt)}
+                      className="px-4 py-2.5 rounded-xl text-sm font-medium text-slate-700 bg-white/80 hover:bg-white border border-slate-200/80 hover:border-teal-300/60 hover:shadow-md transition-all duration-200 shadow-sm"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-slate-400 text-xs mt-8">Or type your question below</p>
               </div>
-              <p className="text-slate-400 text-xs mt-8">Or type your question below</p>
-            </div>
-          ) : (
-            <>
-              {filteredGroups.map((group, idx) => {
-                if (group.type === "user") {
-                  const msg = group.messages[0];
-                  return (
-                    <div key={msg._id} className="flex justify-end">
-                      <Card className="max-w-xs lg:max-w-md bg-primary border-primary text-white">
-                        <CardContent className="p-4">
-                          <div className="flex justify-between items-start gap-2 mb-1">
-                            <div className="text-sm font-medium">You</div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => handleCopyPrompt(msg._id, msg.content)}
-                                className="inline-flex h-6 w-6 items-center justify-center rounded-md text-teal-100/90 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-                                aria-label="Copy prompt"
-                              >
-                                {copiedMessageId === msg._id ? (
-                                  <Check className="h-3.5 w-3.5" />
-                                ) : (
-                                  <Copy className="h-3.5 w-3.5" />
-                                )}
-                              </button>
-                              <div className="text-xs text-teal-100">
-                                {new Date(msg._creationTime).toLocaleTimeString()}
+            ) : (
+              <>
+                {filteredGroups.map((group, idx) => {
+                  if (group.type === "user") {
+                    const msg = group.messages[0];
+                    return (
+                      <div key={msg._id} className="flex justify-end">
+                        <Card className="max-w-xs lg:max-w-md bg-primary border-primary text-white">
+                          <CardContent className="p-4">
+                            <div className="flex justify-between items-start gap-2 mb-1">
+                              <div className="text-sm font-medium">You</div>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyPrompt(msg._id, msg.content)}
+                                  className="inline-flex h-6 w-6 items-center justify-center rounded-md text-teal-100/90 hover:bg-white/10 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                                  aria-label="Copy prompt"
+                                >
+                                  {copiedMessageId === msg._id ? (
+                                    <Check className="h-3.5 w-3.5" />
+                                  ) : (
+                                    <Copy className="h-3.5 w-3.5" />
+                                  )}
+                                </button>
+                                <div className="text-xs text-teal-100">
+                                  {new Date(msg._creationTime).toLocaleTimeString()}
+                                </div>
                               </div>
                             </div>
+                            <div className="whitespace-pre-wrap">{msg.content}</div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    );
+                  }
+
+                  if (group.type === "round" || group.type === "final") {
+                    const messagesByModel = new Map(group.messages.map((m) => [m.model ?? "", m]));
+                    const sortedMessages = [...group.messages].sort((a, b) =>
+                      (a.model ?? "").localeCompare(b.model ?? ""),
+                    );
+                    const isLastGroup = idx === filteredGroups.length - 1;
+                    const isRoundInProgress =
+                      group.type === "round" &&
+                      isLastGroup &&
+                      group.messages.length < selectedModels.length;
+                    const slots = isRoundInProgress
+                      ? selectedModels.map((modelId) => ({
+                          modelId,
+                          msg: messagesByModel.get(modelId),
+                        }))
+                      : sortedMessages.map((m) => ({
+                          modelId: m.model ?? "Unknown",
+                          msg: m,
+                        }));
+                    const groupKey =
+                      group.type === "round"
+                        ? `round-${group.round}`
+                        : `final-${group.messages.map((m) => m._id).join("-")}`;
+                    const showViewToggle =
+                      currentChatMode === "coding" &&
+                      idx > 0 &&
+                      filteredGroups[idx - 1]?.type === "user";
+
+                    return (
+                      <div key={groupKey} className="space-y-3">
+                        {showViewToggle ? responseViewToggle : null}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                          {slots.map(({ modelId, msg }) => {
+                            if (!msg) {
+                              return <LoadingCard key={`loading-${modelId}`} modelName={modelId} />;
+                            }
+                            return (
+                              <div
+                                key={msg._id}
+                                className="min-w-0 rounded-lg border border-slate-200/60 overflow-hidden"
+                              >
+                                <div className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
+                                  <span className="text-xs font-semibold text-slate-700 truncate min-w-0">
+                                    {(msg.model ?? "Unknown").split("/").pop() ?? msg.model}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span className="text-[11px] text-slate-400 tabular-nums">
+                                      {new Date(msg._creationTime).toLocaleTimeString()}
+                                    </span>
+                                    <MetricsInfo msg={msg} />
+                                  </div>
+                                </div>
+                                <div className="px-4 py-4 text-sm text-slate-800">
+                                  <ModelResponseBody
+                                    content={msg.content}
+                                    viewMode={responseViewMode}
+                                    className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return group.messages.map((msg) => (
+                    <div key={msg._id} className="flex justify-start">
+                      <Card
+                        className={
+                          msg.source === "council_error"
+                            ? "w-full max-w-2xl border-red-200 bg-red-50/50 shadow-sm"
+                            : "max-w-full lg:max-w-2xl shadow-sm border-l-4 border-l-primary/40"
+                        }
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+                            <span className="text-sm font-semibold text-slate-800">
+                              {msg.model ? msg.model.split("/").pop() : "Model"}
+                            </span>
+                            <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                              {new Date(msg._creationTime).toLocaleTimeString()}
+                            </span>
                           </div>
-                          <div className="whitespace-pre-wrap">{msg.content}</div>
+                          <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
+                            <MarkdownWithMath>{msg.content}</MarkdownWithMath>
+                          </div>
                         </CardContent>
                       </Card>
                     </div>
-                  );
-                }
-
-                if (group.type === "round" || group.type === "final") {
-                  const messagesByModel = new Map(
-                    group.messages.map((m) => [m.model ?? "", m]),
-                  );
-                  const sortedMessages = [...group.messages].sort((a, b) =>
-                    (a.model ?? "").localeCompare(b.model ?? ""),
-                  );
-                  const isLastGroup = idx === filteredGroups.length - 1;
-                  const isRoundInProgress =
-                    group.type === "round" &&
-                    isLastGroup &&
-                    group.messages.length < selectedModels.length;
-                  const slots = isRoundInProgress
-                    ? selectedModels.map((modelId) => ({
-                        modelId,
-                        msg: messagesByModel.get(modelId),
-                      }))
-                    : sortedMessages.map((m) => ({
-                        modelId: m.model ?? "Unknown",
-                        msg: m,
-                      }));
-                  const groupKey =
-                    group.type === "round"
-                      ? `round-${group.round}`
-                      : `final-${group.messages.map((m) => m._id).join("-")}`;
-                  const showViewToggle =
-                    currentChatMode === "coding" &&
-                    idx > 0 &&
-                    filteredGroups[idx - 1]?.type === "user";
-
-                  return (
-                    <div key={groupKey} className="space-y-3">
-                      {showViewToggle ? responseViewToggle : null}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                        {slots.map(({ modelId, msg }) => {
-                          if (!msg) {
-                            return (
-                              <LoadingCard
-                                key={`loading-${modelId}`}
-                                modelName={modelId}
-                              />
-                            );
-                          }
-                          return (
-                            <div
-                              key={msg._id}
-                              className="min-w-0 rounded-lg border border-slate-200/60 overflow-hidden"
-                            >
-                              <div className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
-                                <span className="text-xs font-semibold text-slate-700 truncate min-w-0">
-                                  {(msg.model ?? "Unknown").split("/").pop() ?? msg.model}
-                                </span>
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <span className="text-[11px] text-slate-400 tabular-nums">
-                                    {new Date(msg._creationTime).toLocaleTimeString()}
-                                  </span>
-                                  <MetricsInfo msg={msg} />
-                                </div>
-                              </div>
-                              <div className="px-4 py-4 text-sm text-slate-800">
-                                <ModelResponseBody
-                                  content={msg.content}
-                                  viewMode={responseViewMode}
-                                  className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0"
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                  ));
+                })}
+                {isWaitingForResponses && (
+                  <div className="space-y-3">
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                      Responding...
+                    </span>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+                      {selectedModels.map((modelId) => (
+                        <LoadingCard key={`waiting-${modelId}`} modelName={modelId} />
+                      ))}
                     </div>
-                  );
-                }
-
-                return group.messages.map((msg) => (
-                  <div key={msg._id} className="flex justify-start">
-                    <Card
-                      className={
-                        msg.source === "council_error"
-                          ? "w-full max-w-2xl border-red-200 bg-red-50/50 shadow-sm"
-                          : "max-w-full lg:max-w-2xl shadow-sm border-l-4 border-l-primary/40"
-                      }
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-slate-100">
-                          <span className="text-sm font-semibold text-slate-800">
-                            {msg.model ? msg.model.split("/").pop() : "Model"}
-                          </span>
-                          <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
-                            {new Date(msg._creationTime).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {msg.content}
-                          </ReactMarkdown>
-                        </div>
-                      </CardContent>
-                    </Card>
                   </div>
-                ));
-              })}
-              {isWaitingForResponses && (
-                <div className="space-y-3">
-                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
-                    Responding...
-                  </span>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                    {selectedModels.map((modelId) => (
-                      <LoadingCard
-                        key={`waiting-${modelId}`}
-                        modelName={modelId}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-          {requestError && (
-            <Card className="border-red-200 bg-red-50/50">
-              <CardContent className="p-4 text-red-700">{requestError}</CardContent>
-            </Card>
-          )}
-          <div ref={messagesEndRef} />
+                )}
+              </>
+            )}
+            {requestError && (
+              <Card className="border-red-200 bg-red-50/50">
+                <CardContent className="p-4 text-red-700">{requestError}</CardContent>
+              </Card>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
         </div>
-      </div>
 
         <div className="fixed bottom-6 left-0 right-0 z-10 flex justify-center px-4 pointer-events-none lg:pl-[19rem]">
-        <form
-          onSubmit={handleSubmit}
-          className="pointer-events-auto w-full max-w-4xl bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08),0_0_1px_rgba(0,0,0,0.1)] border border-slate-200/80 p-4 flex flex-col gap-3"
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-11 shrink-0"
-              onClick={startNewCompare}
-              disabled={isSubmitting}
-            >
-              New compare
-            </Button>
-            <ModelSelector
-              count={2}
-              value={selectedModels}
-              onChange={setSelectedModels}
-              disabled={isSubmitting}
-            />
-            <div className="flex items-center gap-1.5 shrink-0 text-sm text-slate-600">
-              <span>Prompt:</span>
-              <Tabs
-                value={generationMode}
-                onValueChange={(value) => setGenerationMode(value as CompareGenerationMode)}
+          <form
+            onSubmit={handleSubmit}
+            className="pointer-events-auto w-full max-w-4xl bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08),0_0_1px_rgba(0,0,0,0.1)] border border-slate-200/80 p-4 flex flex-col gap-3"
+          >
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-11 shrink-0"
+                onClick={startNewCompare}
+                disabled={isSubmitting}
               >
-                <TabsList className="h-9 p-1">
-                  <TabsTrigger value="answer" className="px-3 py-1 text-xs" disabled={isSubmitting}>
-                    Answer
-                  </TabsTrigger>
-                  <TabsTrigger value="coding" className="px-3 py-1 text-xs" disabled={isSubmitting}>
-                    Coding
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+                New compare
+              </Button>
+              <ModelSelector
+                count={2}
+                value={selectedModels}
+                onChange={setSelectedModels}
+                disabled={isSubmitting}
+              />
+              <div className="flex items-center gap-1.5 shrink-0 text-sm text-slate-600">
+                <span>Prompt:</span>
+                <Tabs
+                  value={generationMode}
+                  onValueChange={(value) => setGenerationMode(value as CompareGenerationMode)}
+                >
+                  <TabsList className="h-9 p-1">
+                    <TabsTrigger
+                      value="answer"
+                      className="px-3 py-1 text-xs"
+                      disabled={isSubmitting}
+                    >
+                      Answer
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="coding"
+                      className="px-3 py-1 text-xs"
+                      disabled={isSubmitting}
+                    >
+                      Coding
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-3">
-            <Input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder={
-                generationMode === "coding"
-                  ? "Ask for an HTML visualization to compare..."
-                  : "Ask a question to compare..."
-              }
-              className="h-11 flex-1 min-w-0"
-              disabled={isSubmitting}
-            />
-            <Button type="submit" disabled={!message.trim() || isSubmitting} className="h-11 shrink-0">
-              {isSubmitting ? "Submitting..." : "Compare"}
-            </Button>
-          </div>
-        </form>
-      </div>
+            <div className="flex gap-3">
+              <Input
+                type="text"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder={
+                  generationMode === "coding"
+                    ? "Ask for an HTML visualization to compare..."
+                    : "Ask a question to compare..."
+                }
+                className="h-11 flex-1 min-w-0"
+                disabled={isSubmitting}
+              />
+              <Button
+                type="submit"
+                disabled={!message.trim() || isSubmitting}
+                className="h-11 shrink-0"
+              >
+                {isSubmitting ? "Submitting..." : "Compare"}
+              </Button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

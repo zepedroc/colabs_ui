@@ -10,7 +10,12 @@ import {
   type GenerationSettings,
   normalizeGenerationSettings,
 } from "./generation";
-import { type ChatMessage, type ResponseMetrics, sendQuery, sendQueryWithTools } from "./openrouter";
+import {
+  type ChatMessage,
+  type ResponseMetrics,
+  sendQuery,
+  sendQueryWithTools,
+} from "./openrouter";
 
 export type CouncilMode = "parallel" | "conversation";
 
@@ -198,7 +203,9 @@ function buildRoundPrompt(
   const generationSuffix = buildGenerationPromptSuffix(generation);
 
   if (totalRounds === 1) {
-    return FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", `User query: ${query}`) + generationSuffix;
+    return (
+      FINAL_ROUND_PROMPT_TEMPLATE.replace("{context}", `User query: ${query}`) + generationSuffix
+    );
   }
   if (roundNumber === 1) {
     return FIRST_ROUND_PROMPT_TEMPLATE.replace("{query}", query) + generationSuffix;
@@ -246,7 +253,11 @@ function extractJsonObject(raw: string): string | null {
   return fenced.slice(start, end + 1);
 }
 
-function defaultResearchDecision(models: string[], roundNumber: number, maxRounds: number): ResearchDecision {
+function defaultResearchDecision(
+  models: string[],
+  roundNumber: number,
+  maxRounds: number,
+): ResearchDecision {
   const shouldStop = roundNumber >= maxRounds;
   return {
     decision: shouldStop ? "stop" : "continue",
@@ -301,7 +312,9 @@ function parseResearchDecision(
       ? parsed.globalInstruction.trim()
       : fallback.globalInstruction;
   const verificationChecklist = Array.isArray(parsed.verificationChecklist)
-    ? parsed.verificationChecklist.filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    ? parsed.verificationChecklist.filter(
+        (x): x is string => typeof x === "string" && x.trim().length > 0,
+      )
     : fallback.verificationChecklist;
 
   const perModelMap = new Map<string, string>();
@@ -367,7 +380,7 @@ function buildResearchPlanningPrompt(
     "3) High-risk factual claims are verified or explicitly marked uncertain.\n" +
     "4) Final output can be actionable and concise.\n\n" +
     "Return STRICT JSON with this exact shape:\n" +
-    '{\n' +
+    "{\n" +
     '  "decision": "continue" | "stop",\n' +
     '  "rationale": "short reason",\n' +
     '  "globalInstruction": "guidance for all models",\n' +
@@ -400,7 +413,10 @@ function buildResearchCouncilPrompt(
   );
 }
 
-function formatResearchOrchestratorMessage(decision: ResearchDecision, roundNumber: number): string {
+function formatResearchOrchestratorMessage(
+  decision: ResearchDecision,
+  roundNumber: number,
+): string {
   const modelInstructions = decision.perModel
     .map((item) => `- ${item.model}: ${item.instruction}`)
     .join("\n");
@@ -444,7 +460,8 @@ async function* runResearchRoundParallel(
 
   const wrapped: Wrapped[] = models.map((model, index) => {
     const instruction =
-      decision.perModel.find((item) => item.model === model)?.instruction ?? decision.globalInstruction;
+      decision.perModel.find((item) => item.model === model)?.instruction ??
+      decision.globalInstruction;
     const prompt = buildResearchCouncilPrompt(
       query,
       roundNumber,
@@ -631,7 +648,9 @@ export async function* queryCouncilStream(
   const normalizedGeneration = normalizeGenerationSettings(generation);
   const modelHistories: Record<string, ChatMessage[]> = {};
   for (const model of models) {
-    modelHistories[model] = [{ role: "system", content: buildCouncilSystemPrompt(normalizedGeneration) }];
+    modelHistories[model] = [
+      { role: "system", content: buildCouncilSystemPrompt(normalizedGeneration) },
+    ];
   }
 
   const allRounds: ModelResponse[][] = [];

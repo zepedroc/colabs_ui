@@ -1,8 +1,7 @@
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { ChartBlock, type ChartSpec } from "@/components/ChartBlock";
+import { MarkdownWithMath } from "@/components/MarkdownWithMath";
 import { ModelSelector, SingleModelSelector } from "@/components/ModelSelector";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -355,7 +354,7 @@ export function ChatPage() {
             </div>
           ) : (
             <>
-              {filteredGroups.map((group, idx) => {
+              {filteredGroups.map((group) => {
                 if (group.type === "user") {
                   const msg = group.messages[0];
                   return (
@@ -398,7 +397,7 @@ export function ChatPage() {
                               </span>
                             </div>
                             <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 text-violet-900">
-                              <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                              <MarkdownWithMath>{msg.content}</MarkdownWithMath>
                             </div>
                           </CardContent>
                         </Card>
@@ -413,25 +412,13 @@ export function ChatPage() {
                       ? `Round ${group.round}`
                       : `Research council · Round ${group.round}`;
                   const messagesByModel = new Map(group.messages.map((m) => [m.model ?? "", m]));
-                  const sortedMessages = [...group.messages].sort((a, b) =>
-                    (a.model ?? "").localeCompare(b.model ?? ""),
-                  );
-                  const isLastGroup = idx === filteredGroups.length - 1;
-                  const isRoundInProgress =
-                    isLastGroup && group.messages.length < selectedModels.length;
-                  const slots = isRoundInProgress
-                    ? selectedModels.map((modelId) => ({
-                        modelId,
-                        msg: messagesByModel.get(modelId),
-                      }))
-                    : sortedMessages.map((m) => ({
-                        modelId: m.model ?? "Unknown",
-                        msg: m,
-                      }));
+                  // Always use selectedModels order so models stay in the same positions
+                  const slots = selectedModels.map((modelId) => ({
+                    modelId,
+                    msg: messagesByModel.get(modelId),
+                  }));
                   const groupKey =
-                    group.type === "round" || group.type === "research_round"
-                      ? `round-${group.round}`
-                      : `research-round-${group.round}`;
+                    group.type === "round" ? `round-${group.round}` : `research-round-${group.round}`;
                   return (
                     <div key={groupKey} className="space-y-3">
                       <div className="flex items-center gap-2">
@@ -478,7 +465,7 @@ export function ChatPage() {
                                 <div
                                   className={`text-sm prose prose-sm prose-agent max-w-none ${colors.accent} prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0`}
                                 >
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                                  <MarkdownWithMath>{body}</MarkdownWithMath>
                                 </div>
                               </CardContent>
                             </Card>
@@ -491,9 +478,11 @@ export function ChatPage() {
 
                 if (group.type === "final") {
                   const title = "Final answers";
-                  const sortedMessages = [...group.messages].sort((a, b) =>
-                    (a.model ?? "").localeCompare(b.model ?? ""),
-                  );
+                  const messagesByModel = new Map(group.messages.map((m) => [m.model ?? "", m]));
+                  // Use selectedModels order so models stay in the same positions
+                  const orderedMessages = selectedModels
+                    .map((modelId) => messagesByModel.get(modelId))
+                    .filter((msg): msg is Doc<"chatMessages"> => msg != null);
                   return (
                     <div
                       key={`final-${group.messages.map((m) => m._id).join("-")}`}
@@ -505,7 +494,7 @@ export function ChatPage() {
                         </span>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {sortedMessages.map((msg, modelIdx) => {
+                        {orderedMessages.map((msg, modelIdx) => {
                           const colors = getAgentColorByIndex(modelIdx);
                           const body = extractMessageBody(msg.content);
                           return (
@@ -534,7 +523,7 @@ export function ChatPage() {
                                 <div
                                   className={`text-sm prose prose-sm prose-agent max-w-none ${colors.accent} prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0`}
                                 >
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                                  <MarkdownWithMath>{body}</MarkdownWithMath>
                                 </div>
                               </CardContent>
                             </Card>
@@ -566,9 +555,7 @@ export function ChatPage() {
                             </span>
                           </div>
                           <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 text-emerald-900">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {extractMessageBody(msg.content)}
-                            </ReactMarkdown>
+                            <MarkdownWithMath>{extractMessageBody(msg.content)}</MarkdownWithMath>
                           </div>
                         </CardContent>
                       </Card>
@@ -602,7 +589,7 @@ export function ChatPage() {
                           </span>
                         </div>
                         <div className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5">
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
+                          <MarkdownWithMath>{msg.content}</MarkdownWithMath>
                         </div>
                       </CardContent>
                     </Card>
@@ -627,6 +614,42 @@ export function ChatPage() {
                   </div>
                 </div>
               )}
+              {(() => {
+                const lastGroup = filteredGroups[filteredGroups.length - 1];
+                if (
+                  !lastGroup ||
+                  (lastGroup.type !== "round" && lastGroup.type !== "research_round")
+                ) {
+                  return null;
+                }
+                const lastRound = (lastGroup as { round: number }).round;
+                const isLastRoundComplete =
+                  lastRound < rounds && lastGroup.messages.length >= selectedModels.length;
+                if (!isLastRoundComplete) return null;
+                const nextRound = lastRound + 1;
+                const title =
+                  lastGroup.type === "round"
+                    ? `Round ${nextRound}`
+                    : `Research council · Round ${nextRound}`;
+                return (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200/80">
+                        {title}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {selectedModels.map((modelId, modelIdx) => (
+                        <LoadingCard
+                          key={`next-round-${nextRound}-${modelId}`}
+                          modelName={modelId}
+                          colors={getAgentColorByIndex(modelIdx)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
           {requestError && (
@@ -696,9 +719,7 @@ export function ChatPage() {
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder={
-              mode === "research"
-                ? "Message the research team..."
-                : "Message the AI council..."
+              mode === "research" ? "Message the research team..." : "Message the AI council..."
             }
             className="h-11 flex-1 min-w-[200px]"
             disabled={isSubmitting}

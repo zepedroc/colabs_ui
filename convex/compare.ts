@@ -119,11 +119,7 @@ export const listSessions = query({
       if (msg.model) {
         session.models.add(msg.model);
       }
-      if (
-        msg.role === "user" &&
-        msg.source === "user" &&
-        msg._creationTime < session.promptAt
-      ) {
+      if (msg.role === "user" && msg.source === "user" && msg._creationTime < session.promptAt) {
         session.promptAt = msg._creationTime;
         session.prompt = msg.content;
       }
