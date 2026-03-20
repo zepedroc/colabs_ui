@@ -1,7 +1,9 @@
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Info, Trash2 } from "lucide-react";
+import { Check, Copy, Info } from "lucide-react";
 import { MarkdownWithMath } from "@/components/MarkdownWithMath";
+import { SessionHistorySidebar } from "@/components/SessionHistorySidebar";
+import { useSessionMessagesQuery } from "@/hooks/useSessionMessagesQuery";
 import { ModelResponseBody, type ResponseViewMode } from "@/components/messages/ModelResponseBody";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -60,21 +62,6 @@ function formatLatency(latencyMs: number | undefined): string {
 
 function getModelDisplayName(model: string): string {
   return model.split("/").pop() ?? model;
-}
-
-function truncateText(value: string, maxLength: number): string {
-  if (value.length <= maxLength) return value;
-  return `${value.slice(0, maxLength - 1)}...`;
-}
-
-function formatSessionDate(timestamp: number): string {
-  return new Date(timestamp).toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function formatChatType(mode: CompareGenerationMode): string {
@@ -200,7 +187,8 @@ export function ComparePage() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollOnMessagesRef = useRef(true);
-  const messages = useQuery(api.chat.getMessages, { sessionId }) || [];
+  const messagesQuery = useQuery(api.chat.getMessages, { sessionId });
+  const { messages, isSwitchLoading } = useSessionMessagesQuery(sessionId, messagesQuery);
   const compareSessions = useQuery(api.compare.listSessions) || [];
   const sendMessage = useMutation(api.compare.sendMessage);
   const deleteSession = useMutation(api.compare.deleteSession);
@@ -382,85 +370,52 @@ export function ComparePage() {
 
   return (
     <div className="h-full min-h-0">
-      <aside className="fixed left-4 top-20 bottom-28 z-20 hidden w-72 flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-lg backdrop-blur lg:flex">
-        <div className="border-b border-slate-200/70 px-4 py-3">
-          <p className="text-sm font-semibold text-slate-800">Compare history</p>
-          <p className="text-xs text-slate-500">{compareSessions.length} chats</p>
-        </div>
-        <div className="flex-1 overflow-y-auto p-2">
-          {compareSessions.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-xs text-slate-500">
-              No previous compare chats yet.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {compareSessions.map((session) => {
-                const isActive = session.sessionId === sessionId;
-                const prompt = session.prompt.trim() ? session.prompt : "Untitled compare chat";
-                const isDeleting = deletingSessionId === session.sessionId;
-                return (
-                  <div
-                    key={session.sessionId}
-                    className={[
-                      "relative rounded-xl border transition-colors",
-                      isActive
-                        ? "border-primary/30 bg-primary/5"
-                        : "border-slate-200/80 bg-white hover:border-slate-300 hover:bg-slate-50/80",
-                    ].join(" ")}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleSelectSession(session.sessionId, session.models, session.mode)
-                      }
-                      disabled={isSubmitting || isDeleting}
-                      className="w-full px-3 py-2.5 pr-10 text-left"
-                    >
-                      <div className="mb-1">
-                        <span
-                          className={[
-                            "inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                            session.mode === "coding"
-                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                              : "border-amber-200 bg-amber-50 text-amber-700",
-                          ].join(" ")}
-                        >
-                          {formatChatType(session.mode)}
-                        </span>
-                      </div>
-                      <p className="text-xs font-medium text-slate-800">
-                        {truncateText(prompt, 80)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {session.models.length > 0
-                          ? session.models.map(getModelDisplayName).join(" vs ")
-                          : "No model data"}
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        {formatSessionDate(session.startedAt)}
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSession(session.sessionId)}
-                      disabled={isSubmitting || isDeleting}
-                      className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
-                      aria-label="Delete chat"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </aside>
+      <SessionHistorySidebar
+        title="Compare history"
+        sessions={compareSessions.map((session) => ({
+          sessionId: session.sessionId,
+          prompt: session.prompt,
+          untitledFallback: "Untitled compare chat",
+          modelsSummary:
+            session.models.length > 0
+              ? session.models.map(getModelDisplayName).join(" vs ")
+              : "No model data",
+          startedAt: session.startedAt,
+          badgeLabel: formatChatType(session.mode),
+          badgeClassName:
+            session.mode === "coding"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+              : "border-amber-200 bg-amber-50 text-amber-700",
+        }))}
+        activeSessionId={sessionId}
+        deletingSessionId={deletingSessionId}
+        isSubmitting={isSubmitting}
+        emptyMessage="No previous compare chats yet."
+        onSelectSession={(id) => {
+          const session = compareSessions.find((s) => s.sessionId === id);
+          if (!session) return;
+          handleSelectSession(session.sessionId, session.models, session.mode);
+        }}
+        onDeleteSession={handleDeleteSession}
+        onNewChat={startNewCompare}
+      />
 
       <div className="flex h-full min-h-0 flex-col lg:pl-[19rem]">
         <div className="flex-1 overflow-y-auto p-6 pb-40 min-h-0">
           <div className="max-w-6xl mx-auto space-y-6">
-            {messages.length === 0 ? (
+            {isSwitchLoading ? (
+              <div
+                className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-slate-500"
+                role="status"
+                aria-live="polite"
+              >
+                <div
+                  className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-teal-600"
+                  aria-hidden
+                />
+                <p className="text-sm">Loading chat…</p>
+              </div>
+            ) : messages.length === 0 ? (
               <div className="relative flex flex-col items-center justify-center min-h-[60vh] py-12 px-4 overflow-hidden">
                 <div
                   className="absolute inset-0 -z-10 opacity-[0.4]"

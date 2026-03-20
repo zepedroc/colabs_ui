@@ -88,6 +88,143 @@ export const getMessages = query({
   },
 });
 
+function isResearchMessageSource(source: string | undefined): boolean {
+  return (
+    source === "research_orchestrator" ||
+    source === "research_council" ||
+    source === "research_final" ||
+    source === "research_error"
+  );
+}
+
+export const listSessions = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return [];
+    }
+
+    const messages = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    const sessions = new Map<
+      string,
+      {
+        sessionId: string;
+        prompt: string;
+        promptAt: number;
+        startedAt: number;
+        lastActivityAt: number;
+        models: Set<string>;
+        maxRound: number;
+        hasResearch: boolean;
+        orchestratorModel: string | null;
+        orchestratorAt: number;
+      }
+    >();
+
+    for (const msg of messages) {
+      if (!msg.sessionId.startsWith("session-")) {
+        continue;
+      }
+
+      let session = sessions.get(msg.sessionId);
+      if (!session) {
+        session = {
+          sessionId: msg.sessionId,
+          prompt: "",
+          promptAt: Number.POSITIVE_INFINITY,
+          startedAt: msg._creationTime,
+          lastActivityAt: msg._creationTime,
+          models: new Set(msg.model ? [msg.model] : []),
+          maxRound: msg.round ?? 0,
+          hasResearch: false,
+          orchestratorModel: null,
+          orchestratorAt: 0,
+        };
+        sessions.set(msg.sessionId, session);
+      }
+
+      if (msg._creationTime < session.startedAt) {
+        session.startedAt = msg._creationTime;
+      }
+      if (msg._creationTime > session.lastActivityAt) {
+        session.lastActivityAt = msg._creationTime;
+      }
+      if (msg.model) {
+        session.models.add(msg.model);
+      }
+      if (msg.round != null && msg.round > session.maxRound) {
+        session.maxRound = msg.round;
+      }
+      const src = msg.source;
+      if (isResearchMessageSource(src)) {
+        session.hasResearch = true;
+        if (
+          (src === "research_orchestrator" || src === "research_final") &&
+          msg.model &&
+          msg._creationTime >= session.orchestratorAt
+        ) {
+          session.orchestratorModel = msg.model;
+          session.orchestratorAt = msg._creationTime;
+        }
+      }
+      if (msg.role === "user" && msg.source === "user" && msg._creationTime < session.promptAt) {
+        session.promptAt = msg._creationTime;
+        session.prompt = msg.content;
+      }
+    }
+
+    return [...sessions.values()]
+      .map((session) => {
+        const mode = session.hasResearch ? ("research" as const) : ("parallel" as const);
+        const rounds = session.maxRound > 0 ? Math.min(5, Math.max(1, session.maxRound)) : 3;
+        return {
+          sessionId: session.sessionId,
+          prompt: session.prompt,
+          mode,
+          models: [...session.models].sort((a, b) => a.localeCompare(b)),
+          rounds,
+          orchestratorModel: session.orchestratorModel,
+          startedAt: session.startedAt,
+          lastActivityAt: session.lastActivityAt,
+        };
+      })
+      .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
+  },
+});
+
+export const deleteSession = mutation({
+  args: {
+    sessionId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+    if (!args.sessionId.startsWith("session-")) {
+      throw new Error("Invalid chat session");
+    }
+
+    const messages = await ctx.db
+      .query("chatMessages")
+      .withIndex("by_user_and_session", (q) =>
+        q.eq("userId", userId).eq("sessionId", args.sessionId),
+      )
+      .collect();
+
+    for (const message of messages) {
+      await ctx.db.delete(message._id);
+    }
+
+    return null;
+  },
+});
+
 export const appendAssistantMessage = internalMutation({
   args: {
     userId: v.id("users"),
