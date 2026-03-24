@@ -13,7 +13,8 @@
     "check": "biome check --write .",
     "tsc": "tsc --noEmit",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "actions": "bun run tsc && bun run test:run && bun run lint && bun run format && bun run build"
   },
   "dependencies": {
     "@convex-dev/auth": "0.0.91",

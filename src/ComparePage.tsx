@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FloatingSettingsPanel, SettingsField } from "@/components/FloatingSettingsPanel";
 import { ModelSelector } from "@/components/ModelSelector";
 import { formatRequestedToResolvedShort, getModelShortName } from "@/lib/modelDisplay";
 import { extractMessageBody } from "@/lib/messages/extractMessageBody";
@@ -457,12 +458,73 @@ export function ComparePage() {
           </div>
         </div>
 
+        <FloatingSettingsPanel>
+          <SettingsField label="Models">
+            <ModelSelector
+              count={2}
+              value={selectedModels}
+              onChange={setSelectedModels}
+              disabled={isSubmitting}
+            />
+          </SettingsField>
+
+          <SettingsField label="Prompt mode">
+            <Tabs
+              value={generationMode}
+              onValueChange={(value) => setGenerationMode(value as CompareGenerationMode)}
+            >
+              <TabsList className="h-9 p-1 w-full">
+                <TabsTrigger
+                  value="answer"
+                  className="flex-1 px-3 py-1 text-xs"
+                  disabled={isSubmitting}
+                >
+                  Answer
+                </TabsTrigger>
+                <TabsTrigger
+                  value="coding"
+                  className="flex-1 px-3 py-1 text-xs"
+                  disabled={isSubmitting}
+                >
+                  Coding
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </SettingsField>
+
+          {generationMode === "coding" && (
+            <SettingsField label="Artifact type">
+              <Tabs
+                value={codingArtifact}
+                onValueChange={(value) => setCodingArtifact(value as CompareCodingArtifact)}
+              >
+                <TabsList className="h-9 p-1 w-full">
+                  <TabsTrigger
+                    value="html"
+                    className="flex-1 px-3 py-1 text-xs"
+                    disabled={isSubmitting}
+                  >
+                    HTML
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="react"
+                    className="flex-1 px-3 py-1 text-xs"
+                    disabled={isSubmitting}
+                  >
+                    3D (R3F)
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </SettingsField>
+          )}
+        </FloatingSettingsPanel>
+
         <div className="fixed bottom-6 left-0 right-0 z-10 flex justify-center px-4 pointer-events-none lg:pl-[19rem]">
           <form
             onSubmit={handleSubmit}
-            className="pointer-events-auto w-full max-w-4xl bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08),0_0_1px_rgba(0,0,0,0.1)] border border-slate-200/80 p-4 flex flex-col gap-3"
+            className="pointer-events-auto w-full max-w-4xl bg-white rounded-2xl shadow-[0_4px_24px_rgba(0,0,0,0.08),0_0_1px_rgba(0,0,0,0.1)] border border-slate-200/80 p-4"
           >
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-3">
               <Button
                 type="button"
                 variant="outline"
@@ -471,66 +533,8 @@ export function ComparePage() {
                 onClick={startNewCompare}
                 disabled={isSubmitting}
               >
-                New compare
+                New chat
               </Button>
-              <ModelSelector
-                count={2}
-                value={selectedModels}
-                onChange={setSelectedModels}
-                disabled={isSubmitting}
-              />
-              <div className="flex flex-wrap items-center gap-2 shrink-0 text-sm text-slate-600">
-                <span>Prompt:</span>
-                <Tabs
-                  value={generationMode}
-                  onValueChange={(value) => setGenerationMode(value as CompareGenerationMode)}
-                >
-                  <TabsList className="h-9 p-1">
-                    <TabsTrigger
-                      value="answer"
-                      className="px-3 py-1 text-xs"
-                      disabled={isSubmitting}
-                    >
-                      Answer
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="coding"
-                      className="px-3 py-1 text-xs"
-                      disabled={isSubmitting}
-                    >
-                      Coding
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                {generationMode === "coding" ? (
-                  <>
-                    <span className="text-slate-400 hidden sm:inline">·</span>
-                    <Tabs
-                      value={codingArtifact}
-                      onValueChange={(value) => setCodingArtifact(value as CompareCodingArtifact)}
-                    >
-                      <TabsList className="h-9 p-1">
-                        <TabsTrigger
-                          value="html"
-                          className="px-3 py-1 text-xs"
-                          disabled={isSubmitting}
-                        >
-                          HTML
-                        </TabsTrigger>
-                        <TabsTrigger
-                          value="react"
-                          className="px-3 py-1 text-xs"
-                          disabled={isSubmitting}
-                        >
-                          3D (R3F)
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </>
-                ) : null}
-              </div>
-            </div>
-            <div className="flex gap-3">
               <Input
                 type="text"
                 value={message}

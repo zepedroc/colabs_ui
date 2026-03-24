@@ -144,7 +144,6 @@ export function ModelSelector({
 
   return (
     <div ref={containerRef} className="relative flex items-center gap-2 shrink-0">
-      <span className="text-sm text-slate-600 shrink-0">Models:</span>
       <Button
         type="button"
         variant="outline"
