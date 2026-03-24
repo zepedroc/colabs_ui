@@ -43,6 +43,7 @@ export function ComparePage() {
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<Doc<"chatMessages">["_id"] | null>(null);
   const [requestError, setRequestError] = useState<string | null>(null);
+  const [settingsPanelOpen, setSettingsPanelOpen] = useState<boolean | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const shouldScrollOnMessagesRef = useRef(true);
   const messagesQuery = useQuery(api.chat.getMessages, { sessionId });
@@ -69,6 +70,7 @@ export function ComparePage() {
     const query = message.trim();
     setMessage("");
     setRequestError(null);
+    setSettingsPanelOpen(false);
     shouldScrollOnMessagesRef.current = true;
     setIsSubmitting(true);
 
@@ -164,6 +166,7 @@ export function ComparePage() {
     setSessionId(nextSessionId);
     setGenerationMode(mode);
     setRequestError(null);
+    setSettingsPanelOpen(false);
     if (mode === "coding") {
       setCodingArtifact(normalizeCodingArtifact(artifact));
     }
@@ -482,7 +485,7 @@ export function ComparePage() {
           </div>
         </div>
 
-        <FloatingSettingsPanel>
+        <FloatingSettingsPanel open={settingsPanelOpen}>
           <SettingsField label="Prompt mode">
             <Tabs
               value={generationMode}
