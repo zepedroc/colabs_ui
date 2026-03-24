@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-export type GenerationMode = "answer" | "coding";
+export type GenerationMode = "answer" | "coding" | "image";
 export type GenerationArtifact = "none" | "html" | "threejs" | "react";
 
 export type GenerationSettings = {
@@ -13,7 +13,7 @@ export const DEFAULT_GENERATION_SETTINGS: GenerationSettings = {
   artifact: "none",
 };
 
-export const generationModeValidator = v.union(v.literal("answer"), v.literal("coding"));
+export const generationModeValidator = v.union(v.literal("answer"), v.literal("coding"), v.literal("image"));
 export const generationArtifactValidator = v.union(
   v.literal("none"),
   v.literal("html"),
@@ -30,6 +30,9 @@ export function normalizeGenerationSettings(
 ): GenerationSettings {
   if (!generation) {
     return DEFAULT_GENERATION_SETTINGS;
+  }
+  if (generation.mode === "image") {
+    return { mode: "image", artifact: "none" };
   }
   if (generation.mode === "coding") {
     return {

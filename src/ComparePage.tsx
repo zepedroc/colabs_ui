@@ -4,6 +4,7 @@ import { Check, Copy } from "lucide-react";
 import { MarkdownWithMath } from "@/components/MarkdownWithMath";
 import { SessionHistorySidebar } from "@/components/SessionHistorySidebar";
 import { useSessionMessagesQuery } from "@/hooks/useSessionMessagesQuery";
+import { ImageResponseBody } from "@/components/messages/ImageResponseBody";
 import { ModelResponseBody, type ResponseViewMode } from "@/components/messages/ModelResponseBody";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FloatingSettingsPanel, SettingsField } from "@/components/FloatingSettingsPanel";
 import { ModelSelector } from "@/components/ModelSelector";
+import { useFreeImageModels } from "@/hooks/useFreeImageModels";
 import { formatRequestedToResolvedShort, getModelShortName } from "@/lib/modelDisplay";
 import { extractMessageBody } from "@/lib/messages/extractMessageBody";
 import { extractRenderArtifacts } from "@/lib/messages/extractRenderArtifacts";
@@ -32,7 +34,9 @@ export function ComparePage() {
   const [message, setMessage] = useState("");
   const [sessionId, setSessionId] = useState(() => `compare-${Date.now()}-${Math.random()}`);
   const [selectedModels, setSelectedModels] = useState<[string, string]>(DEFAULT_COMPARE_MODELS);
+  const [selectedImageModels, setSelectedImageModels] = useState<[string, string]>(["", ""]);
   const [generationMode, setGenerationMode] = useState<CompareGenerationMode>("answer");
+  const imageModelsData = useFreeImageModels();
   const [codingArtifact, setCodingArtifact] = useState<CompareCodingArtifact>("html");
   const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>("response");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -68,11 +72,13 @@ export function ComparePage() {
     shouldScrollOnMessagesRef.current = true;
     setIsSubmitting(true);
 
+    const activeModels = generationMode === "image" ? selectedImageModels : selectedModels;
+
     try {
       await sendMessage({
         content: query,
         sessionId,
-        models: selectedModels,
+        models: activeModels,
         generation: {
           mode: generationMode,
           artifact: generationMode === "coding" ? codingArtifact : "none",
@@ -89,7 +95,14 @@ export function ComparePage() {
   const groups = groupMessages(messages);
   const isWaitingForResponses = groups.length > 0 && groups[groups.length - 1].type === "user";
   const currentSessionSummary = compareSessions.find((session) => session.sessionId === sessionId);
+  const activeModels = generationMode === "image" ? selectedImageModels : selectedModels;
   const currentChatMode: CompareGenerationMode = useMemo(() => {
+    const hasImageUserPrompt = messages.some(
+      (msg) => msg.role === "user" && msg.source === "user" && msg.generationMode === "image",
+    );
+    if (hasImageUserPrompt) {
+      return "image";
+    }
     const hasCodingUserPrompt = messages.some(
       (msg) => msg.role === "user" && msg.source === "user" && msg.generationMode === "coding",
     );
@@ -156,7 +169,11 @@ export function ComparePage() {
     }
     if (models.length >= 2) {
       const nextModels: [string, string] = [models[0], models[1]];
-      setSelectedModels(nextModels);
+      if (mode === "image") {
+        setSelectedImageModels(nextModels);
+      } else {
+        setSelectedModels(nextModels);
+      }
     }
   };
 
@@ -344,9 +361,9 @@ export function ComparePage() {
                     const isRoundInProgress =
                       group.type === "round" &&
                       isLastGroup &&
-                      group.messages.length < selectedModels.length;
+                      group.messages.length < activeModels.length;
                     const slots = isRoundInProgress
-                      ? selectedModels.map((modelId) => ({
+                      ? activeModels.map((modelId) => ({
                           modelId,
                           msg: messagesByModel.get(modelId),
                         }))
@@ -393,11 +410,18 @@ export function ComparePage() {
                                   </div>
                                 </div>
                                 <div className="px-4 py-4 text-sm text-slate-800">
-                                  <ModelResponseBody
-                                    content={msg.content}
-                                    viewMode={responseViewMode}
-                                    className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0"
-                                  />
+                                  {currentChatMode === "image" ? (
+                                    <ImageResponseBody
+                                      content={msg.content}
+                                      className="prose prose-sm prose-agent max-w-none"
+                                    />
+                                  ) : (
+                                    <ModelResponseBody
+                                      content={msg.content}
+                                      viewMode={responseViewMode}
+                                      className="prose prose-sm prose-agent max-w-none prose-p:my-1.5 prose-ul:my-1.5 prose-ol:my-1.5 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1.5 first:prose-p:mt-0"
+                                    />
+                                  )}
                                 </div>
                               </div>
                             );
@@ -441,7 +465,7 @@ export function ComparePage() {
                       Responding...
                     </span>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
-                      {selectedModels.map((modelId) => (
+                      {activeModels.map((modelId) => (
                         <CompareLoadingCard key={`waiting-${modelId}`} modelName={modelId} />
                       ))}
                     </div>
@@ -459,15 +483,6 @@ export function ComparePage() {
         </div>
 
         <FloatingSettingsPanel>
-          <SettingsField label="Models">
-            <ModelSelector
-              count={2}
-              value={selectedModels}
-              onChange={setSelectedModels}
-              disabled={isSubmitting}
-            />
-          </SettingsField>
-
           <SettingsField label="Prompt mode">
             <Tabs
               value={generationMode}
@@ -488,8 +503,34 @@ export function ComparePage() {
                 >
                   Coding
                 </TabsTrigger>
+                <TabsTrigger
+                  value="image"
+                  className="flex-1 px-3 py-1 text-xs"
+                  disabled={isSubmitting}
+                >
+                  Image
+                </TabsTrigger>
               </TabsList>
             </Tabs>
+          </SettingsField>
+
+          <SettingsField label="Models">
+            {generationMode === "image" ? (
+              <ModelSelector
+                count={2}
+                value={selectedImageModels}
+                onChange={setSelectedImageModels}
+                disabled={isSubmitting}
+                externalModels={imageModelsData}
+              />
+            ) : (
+              <ModelSelector
+                count={2}
+                value={selectedModels}
+                onChange={setSelectedModels}
+                disabled={isSubmitting}
+              />
+            )}
           </SettingsField>
 
           {generationMode === "coding" && (
@@ -540,11 +581,13 @@ export function ComparePage() {
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder={
-                  generationMode === "coding"
-                    ? codingArtifact === "react"
-                      ? "Ask for a React Three Fiber 3D scene to compare..."
-                      : "Ask for an HTML visualization to compare..."
-                    : "Ask a question to compare..."
+                  generationMode === "image"
+                    ? "Describe the image you want to generate..."
+                    : generationMode === "coding"
+                      ? codingArtifact === "react"
+                        ? "Ask for a React Three Fiber 3D scene to compare..."
+                        : "Ask for an HTML visualization to compare..."
+                      : "Ask a question to compare..."
                 }
                 className="h-11 flex-1 min-w-0"
                 disabled={isSubmitting}

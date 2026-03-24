@@ -1,6 +1,6 @@
 import type { Doc } from "../../convex/_generated/dataModel";
 
-export type CompareGenerationMode = "answer" | "coding";
+export type CompareGenerationMode = "answer" | "coding" | "image";
 
 /** Values the compare UI exposes (HTML vs one 3D mode backed by R3F / `react` in Convex). */
 export type CompareCodingArtifact = "html" | "react";

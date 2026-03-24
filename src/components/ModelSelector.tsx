@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { FreeModel } from "@/hooks/useFreeModels";
 import { useFreeModels } from "@/hooks/useFreeModels";
 import { useModelPreferences } from "@/hooks/useModelPreferences";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,8 @@ export type ModelSelectorPropsBase = {
   disabled?: boolean;
   /** When "down", dropdown opens below the button. Default "up" opens above. */
   dropdownPosition?: "up" | "down";
+  /** Override the internally-fetched models list. When provided, the hook is bypassed. */
+  externalModels?: { models: FreeModel[]; loading: boolean; error: string | null };
 };
 
 export type SingleModelSelectorProps = {
@@ -55,11 +58,13 @@ export function ModelSelector({
   disabled,
   dropdownPosition = "up",
   count = 3,
+  externalModels,
 }: ModelSelectorProps) {
   const targetCount = count;
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { models, loading, error } = useFreeModels();
+  const internal = useFreeModels();
+  const { models, loading, error } = externalModels ?? internal;
   const { favorites, deprecated, toggleFavorite, toggleDeprecated } = useModelPreferences();
 
   const handleToggle = useCallback(

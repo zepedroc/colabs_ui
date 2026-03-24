@@ -71,6 +71,10 @@ export const sendMessage = mutation({
           : undefined,
     });
 
+    // Image mode: no orchestrator needed, just use a no-op default
+    const orchestratorModel =
+      generation.mode === "image" ? args.models[0] : getDefaultOrchestratorModel();
+
     await ctx.scheduler.runAfter(0, internal.chat.runCouncilQuery, {
       userId,
       sessionId: args.sessionId,
@@ -78,7 +82,7 @@ export const sendMessage = mutation({
       rounds: 1,
       mode: "parallel",
       models: args.models,
-      orchestratorModel: getDefaultOrchestratorModel(),
+      orchestratorModel,
       generation,
     });
 
@@ -105,7 +109,7 @@ export const listSessions = query({
         sessionId: string;
         prompt: string;
         promptAt: number;
-        mode: "answer" | "coding";
+        mode: "answer" | "coding" | "image";
         codingArtifact?: "html" | "react" | "threejs";
         /** True if any user message persisted `generationArtifact` (do not infer from assistants). */
         hasStoredCodingArtifact: boolean;
@@ -162,7 +166,9 @@ export const listSessions = query({
         session.promptAt = msg._creationTime;
         session.prompt = msg.content;
       }
-      if (msg.role === "user" && msg.source === "user" && msg.generationMode === "coding") {
+      if (msg.role === "user" && msg.source === "user" && msg.generationMode === "image") {
+        session.mode = "image";
+      } else if (msg.role === "user" && msg.source === "user" && msg.generationMode === "coding") {
         session.mode = "coding";
         if (msg.generationArtifact !== undefined) {
           session.hasStoredCodingArtifact = true;

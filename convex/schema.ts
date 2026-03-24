@@ -28,7 +28,7 @@ const applicationTables = {
     content: v.string(),
     role: v.union(v.literal("user"), v.literal("assistant")),
     sessionId: v.string(),
-    generationMode: v.optional(v.union(v.literal("answer"), v.literal("coding"))),
+    generationMode: v.optional(v.union(v.literal("answer"), v.literal("coding"), v.literal("image"))),
     /** When `generationMode` is coding (e.g. compare), which artifact the user asked for. */
     generationArtifact: v.optional(
       v.union(v.literal("html"), v.literal("react"), v.literal("threejs")),

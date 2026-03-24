@@ -42,6 +42,10 @@ const CODING_HTML_SYSTEM_PROMPT =
   "You are in coding mode for visual output. Return one fenced html code block that is preview-ready. " +
   "Prefer self-contained HTML and CSS, avoid external dependencies and JavaScript execution requirements.";
 
+const IMAGE_GENERATION_SYSTEM_PROMPT =
+  "You are an image generation model. Generate an image based on the user's description. " +
+  "Be creative and produce the best visual result you can from the given prompt.";
+
 const CODING_R3F_SYSTEM_PROMPT =
   "You are in coding mode for a React Three Fiber 3D preview. " +
   "Return exactly one fenced TSX code block labeled r3f or tsx. " +
@@ -135,6 +139,9 @@ async function querySingleModel(
 }
 
 function buildCouncilSystemPrompt(generation: GenerationSettings): string {
+  if (generation.mode === "image") {
+    return IMAGE_GENERATION_SYSTEM_PROMPT;
+  }
   if (generation.mode !== "coding") {
     return BASE_COUNCIL_SYSTEM_PROMPT;
   }
@@ -157,6 +164,7 @@ function buildGenerationPromptSuffix(generation: GenerationSettings): string {
   if (generation.mode !== "coding") {
     return "";
   }
+  // Image mode has no suffix - the system prompt handles everything.
 
   if (generation.artifact === "html") {
     return (
@@ -681,6 +689,8 @@ export async function* queryCouncilStream(
   }
 
   const normalizedGeneration = normalizeGenerationSettings(generation);
+  // Image generation models do not support tool calling.
+  const effectiveToolsEnabled = normalizedGeneration.mode === "image" ? false : toolsEnabled;
   const modelHistories: Record<string, ChatMessage[]> = {};
   for (const model of models) {
     modelHistories[model] = [
@@ -703,7 +713,7 @@ export async function* queryCouncilStream(
         rounds,
         allRounds,
         modelHistories,
-        toolsEnabled,
+        effectiveToolsEnabled,
         normalizedGeneration,
       )) {
         yield roundResponseEvent(roundNumber, response);
@@ -719,7 +729,7 @@ export async function* queryCouncilStream(
         rounds,
         allRounds,
         modelHistories,
-        toolsEnabled,
+        effectiveToolsEnabled,
         normalizedGeneration,
       );
       for (const response of responses) {
