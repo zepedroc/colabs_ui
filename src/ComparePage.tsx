@@ -18,7 +18,7 @@ import { CompareMetricsInfo } from "@/compare/CompareMetricsInfo";
 import { normalizeCodingArtifact } from "@/compare/artifacts";
 import { DEFAULT_COMPARE_MODELS } from "@/compare/constants";
 import { compareHistoryBadgeClass, formatCompareHistoryBadge } from "@/compare/historyBadges";
-import { groupMessages, isFinalSameAsLastRound } from "@/compare/messageGroups";
+import { filterRedundantFinalGroups, groupMessages } from "@/compare/messageGroups";
 import type {
   CompareCodingArtifact,
   CompareGenerationMode,
@@ -108,17 +108,7 @@ export function ComparePage() {
     return currentSessionSummary?.mode ?? generationMode;
   }, [messages, currentSessionSummary, generationMode]);
 
-  const filteredGroups = groups.filter((group, idx) => {
-    if (group.type !== "final") return true;
-    const lastRound = [...groups]
-      .slice(0, idx)
-      .reverse()
-      .find(
-        (g): g is { type: "round"; round: number; messages: Doc<"chatMessages">[] } =>
-          g.type === "round",
-      );
-    return !isFinalSameAsLastRound(group, lastRound ?? null);
-  });
+  const filteredGroups = filterRedundantFinalGroups(groups);
 
   const hasArtifactPreview = useMemo(() => {
     const latestRenderableGroup = [...filteredGroups]

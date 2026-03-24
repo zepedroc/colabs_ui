@@ -59,3 +59,18 @@ export function isFinalSameAsLastRound(
   }
   return true;
 }
+
+/** Hides `final` groups that duplicate the preceding round’s content per model (same UX as showing the round only). */
+export function filterRedundantFinalGroups(groups: MessageGroup[]): MessageGroup[] {
+  return groups.filter((group, idx) => {
+    if (group.type !== "final") return true;
+    const lastRound = [...groups]
+      .slice(0, idx)
+      .reverse()
+      .find(
+        (g): g is { type: "round"; round: number; messages: Doc<"chatMessages">[] } =>
+          g.type === "round",
+      );
+    return !isFinalSameAsLastRound(group, lastRound ?? null);
+  });
+}
