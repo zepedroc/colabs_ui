@@ -1,232 +1,31 @@
 import { useMutation, useQuery } from "convex/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, Copy, Info } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { MarkdownWithMath } from "@/components/MarkdownWithMath";
 import { SessionHistorySidebar } from "@/components/SessionHistorySidebar";
 import { useSessionMessagesQuery } from "@/hooks/useSessionMessagesQuery";
 import { ModelResponseBody, type ResponseViewMode } from "@/components/messages/ModelResponseBody";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ModelSelector } from "@/components/ModelSelector";
-import { formatRequestedToResolvedShort } from "@/lib/modelDisplay";
+import { formatRequestedToResolvedShort, getModelShortName } from "@/lib/modelDisplay";
 import { extractMessageBody } from "@/lib/messages/extractMessageBody";
 import { extractRenderArtifacts } from "@/lib/messages/extractRenderArtifacts";
+import { CompareLoadingCard } from "@/compare/CompareLoadingCard";
+import { CompareMetricsInfo } from "@/compare/CompareMetricsInfo";
+import { normalizeCodingArtifact } from "@/compare/artifacts";
+import { DEFAULT_COMPARE_MODELS } from "@/compare/constants";
+import { compareHistoryBadgeClass, formatCompareHistoryBadge } from "@/compare/historyBadges";
+import { groupMessages, isFinalSameAsLastRound } from "@/compare/messageGroups";
+import type {
+  CompareCodingArtifact,
+  CompareGenerationMode,
+  StoredCompareCodingArtifact,
+} from "@/compare/types";
 import { api } from "../convex/_generated/api";
 import type { Doc } from "../convex/_generated/dataModel";
-
-function LoadingCard({ modelName }: { modelName: string }) {
-  return (
-    <Card className="min-w-0 border border-slate-200/60 overflow-hidden animate-pulse">
-      <CardHeader className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
-        <span className="text-xs font-semibold text-slate-600">
-          {modelName.split("/").pop() ?? modelName}
-        </span>
-      </CardHeader>
-      <CardContent className="px-4 py-4">
-        <div className="flex gap-2">
-          <div className="h-3 flex-1 rounded bg-slate-200/60" />
-          <div className="h-3 flex-1 rounded bg-slate-200/60" />
-          <div className="h-3 w-1/3 rounded bg-slate-200/60" />
-        </div>
-        <div className="flex gap-2 mt-2">
-          <div className="h-3 flex-1 rounded bg-slate-200/40" />
-          <div className="h-3 w-2/3 rounded bg-slate-200/40" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function formatTokens(msg: Doc<"chatMessages">): string {
-  const totalTokens =
-    msg.totalTokens ??
-    ((msg.promptTokens ?? msg.usagePromptTokens) !== undefined &&
-    (msg.completionTokens ?? msg.usageCompletionTokens) !== undefined
-      ? (msg.promptTokens ?? msg.usagePromptTokens ?? 0) +
-        (msg.completionTokens ?? msg.usageCompletionTokens ?? 0)
-      : undefined);
-  return totalTokens !== undefined ? totalTokens.toLocaleString() : "-";
-}
-
-function formatCost(costUsd: number | undefined): string {
-  if (costUsd === undefined) return "-";
-  return `$${costUsd.toFixed(2)}`;
-}
-
-function formatLatency(latencyMs: number | undefined): string {
-  if (latencyMs === undefined) return "-";
-  if (latencyMs >= 1000) return `${(latencyMs / 1000).toFixed(2)} s`;
-  return `${Math.round(latencyMs)} ms`;
-}
-
-function getModelDisplayName(model: string): string {
-  return model.split("/").pop() ?? model;
-}
-
-type CompareGenerationMode = "answer" | "coding";
-
-/** Values the compare UI exposes (HTML vs one 3D mode backed by R3F / `react` in Convex). */
-type CompareCodingArtifact = "html" | "react";
-
-/** Persisted `generation.artifact`; `threejs` is normalized to the same 3D tab as `react`. */
-type StoredCompareCodingArtifact = "html" | "react" | "threejs";
-
-/**
- * Map stored Convex artifacts onto the two UI tabs. `threejs` and `react` both select 3D (R3F).
- */
-function normalizeCodingArtifact(
-  artifact: StoredCompareCodingArtifact | undefined,
-): CompareCodingArtifact {
-  if (artifact === "react" || artifact === "threejs") {
-    return "react";
-  }
-  if (artifact === "html") {
-    return "html";
-  }
-  return "html";
-}
-
-type CompareSessionListEntry = {
-  mode: CompareGenerationMode;
-  codingArtifact?: StoredCompareCodingArtifact;
-};
-
-function formatCompareHistoryBadge(session: CompareSessionListEntry): string {
-  if (session.mode !== "coding") {
-    return "Text";
-  }
-  switch (session.codingArtifact) {
-    case "react":
-    case "threejs":
-      return "3D";
-    case "html":
-      return "HTML";
-    default:
-      return "Coding";
-  }
-}
-
-function compareHistoryBadgeClass(session: CompareSessionListEntry): string {
-  if (session.mode !== "coding") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-  switch (session.codingArtifact) {
-    case "react":
-    case "threejs":
-      return "border-violet-200 bg-violet-50 text-violet-800";
-    case "html":
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    default:
-      return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-}
-
-function getMessageLatency(msg: Doc<"chatMessages">): number | undefined {
-  return msg.latencyMs ?? msg.responseTimeMs;
-}
-
-function MetricsInfo({ msg }: { msg: Doc<"chatMessages"> }) {
-  return (
-    <div className="relative group/metrics">
-      <button
-        type="button"
-        className="inline-flex h-4 w-4 items-center justify-center text-slate-400 hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-300 rounded-sm"
-        aria-label="Show response metrics"
-      >
-        <Info className="h-3.5 w-3.5" />
-      </button>
-      <div className="pointer-events-none absolute right-0 top-[calc(100%+8px)] z-20 w-56 rounded-md border border-slate-200 bg-white px-3 py-2 shadow-lg opacity-0 translate-y-1 transition-all duration-150 group-hover/metrics:opacity-100 group-hover/metrics:translate-y-0 group-focus-within/metrics:opacity-100 group-focus-within/metrics:translate-y-0">
-        <div className="text-[11px] text-slate-500 space-y-1">
-          <div className="flex justify-between gap-3">
-            <span>Tokens</span>
-            <span className="font-medium text-slate-700">{formatTokens(msg)}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Cost</span>
-            <span className="font-medium text-slate-700">{formatCost(msg.costUsd)}</span>
-          </div>
-          <div className="flex justify-between gap-3">
-            <span>Response time</span>
-            <span className="font-medium text-slate-700">
-              {formatLatency(getMessageLatency(msg))}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-type MessageGroup =
-  | { type: "user"; messages: Doc<"chatMessages">[] }
-  | { type: "round"; round: number; messages: Doc<"chatMessages">[] }
-  | { type: "final"; messages: Doc<"chatMessages">[] }
-  | { type: "single"; messages: Doc<"chatMessages">[] };
-
-function groupMessages(messages: Doc<"chatMessages">[]): MessageGroup[] {
-  const result: MessageGroup[] = [];
-  let currentGroup: MessageGroup | null = null;
-
-  for (const msg of messages) {
-    if (msg.role === "user") {
-      if (currentGroup) {
-        result.push(currentGroup);
-        currentGroup = null;
-      }
-      result.push({ type: "user", messages: [msg] });
-    } else {
-      if (msg.source === "council_round" && msg.round != null) {
-        if (currentGroup && currentGroup.type === "round" && currentGroup.round === msg.round) {
-          currentGroup.messages.push(msg);
-        } else {
-          if (currentGroup) result.push(currentGroup);
-          currentGroup = { type: "round", round: msg.round, messages: [msg] };
-        }
-      } else if (msg.source === "council_final") {
-        if (currentGroup && currentGroup.type === "final") {
-          currentGroup.messages.push(msg);
-        } else {
-          if (currentGroup) result.push(currentGroup);
-          currentGroup = { type: "final", messages: [msg] };
-        }
-      } else {
-        if (currentGroup) result.push(currentGroup);
-        currentGroup = { type: "single", messages: [msg] };
-        result.push(currentGroup);
-        currentGroup = null;
-      }
-    }
-  }
-  if (currentGroup) result.push(currentGroup);
-  return result;
-}
-
-function isFinalSameAsLastRound(
-  finalGroup: { type: "final"; messages: Doc<"chatMessages">[] },
-  lastRoundGroup: { type: "round"; round: number; messages: Doc<"chatMessages">[] } | null,
-): boolean {
-  if (!lastRoundGroup) return false;
-  const finalByModel = new Map(finalGroup.messages.map((m) => [m.model ?? "", m]));
-  const roundByModel = new Map(lastRoundGroup.messages.map((m) => [m.model ?? "", m]));
-  if (finalByModel.size !== roundByModel.size) return false;
-  for (const [model, finalMsg] of finalByModel) {
-    const roundMsg = roundByModel.get(model);
-    if (
-      !roundMsg ||
-      extractMessageBody(finalMsg.content) !== extractMessageBody(roundMsg.content)
-    ) {
-      return false;
-    }
-  }
-  return true;
-}
-
-const DEFAULT_COMPARE_MODELS: [string, string] = [
-  "stepfun/step-3.5-flash:free",
-  "arcee-ai/trinity-large-preview:free",
-];
 
 export function ComparePage() {
   const [message, setMessage] = useState("");
@@ -436,7 +235,7 @@ export function ComparePage() {
           untitledFallback: "Untitled compare chat",
           modelsSummary:
             session.models.length > 0
-              ? session.historyModelsSummary || session.models.map(getModelDisplayName).join(" vs ")
+              ? session.historyModelsSummary || session.models.map(getModelShortName).join(" vs ")
               : "No model data",
           startedAt: session.startedAt,
           badgeLabel: formatCompareHistoryBadge(session),
@@ -579,7 +378,12 @@ export function ComparePage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                           {slots.map(({ modelId, msg }) => {
                             if (!msg) {
-                              return <LoadingCard key={`loading-${modelId}`} modelName={modelId} />;
+                              return (
+                                <CompareLoadingCard
+                                  key={`loading-${modelId}`}
+                                  modelName={modelId}
+                                />
+                              );
                             }
                             return (
                               <div
@@ -594,7 +398,7 @@ export function ComparePage() {
                                     <span className="text-[11px] text-slate-400 tabular-nums">
                                       {new Date(msg._creationTime).toLocaleTimeString()}
                                     </span>
-                                    <MetricsInfo msg={msg} />
+                                    <CompareMetricsInfo msg={msg} />
                                   </div>
                                 </div>
                                 <div className="px-4 py-4 text-sm text-slate-800">
@@ -647,7 +451,7 @@ export function ComparePage() {
                     </span>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                       {selectedModels.map((modelId) => (
-                        <LoadingCard key={`waiting-${modelId}`} modelName={modelId} />
+                        <CompareLoadingCard key={`waiting-${modelId}`} modelName={modelId} />
                       ))}
                     </div>
                   </div>
