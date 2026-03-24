@@ -4,12 +4,33 @@ import { internal } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { getDefaultOrchestratorModel } from "./aiConfig";
 import { generationSettingsValidator, normalizeGenerationSettings } from "./generation";
+import {
+  type LatestResolvedByRequested,
+  historyModelsLine,
+  mergeLatestResolvedModel,
+} from "./modelLabels";
 
 const modelsValidator = v.array(v.string());
 
-function looksLikeHtmlResponse(content: string): boolean {
+function inferCodingArtifactFromAssistant(content: string): "html" | "react" | null {
+  const lower = content.toLowerCase();
+  if (lower.includes("```r3f")) {
+    return "react";
+  }
+  if ((lower.includes("```tsx") || lower.includes("```jsx")) && /<Canvas\b/u.test(content)) {
+    return "react";
+  }
+  if (lower.includes("```html")) {
+    return "html";
+  }
+  return null;
+}
+
+function looksLikeCodingPreviewResponse(content: string): boolean {
   const normalized = content.toLowerCase();
   return (
+    normalized.includes("```r3f") ||
+    normalized.includes("```tsx") ||
     normalized.includes("```html") ||
     normalized.includes("<!doctype html") ||
     normalized.includes("<html") ||
@@ -44,6 +65,10 @@ export const sendMessage = mutation({
       sessionId: args.sessionId,
       source: "user",
       generationMode: generation.mode,
+      generationArtifact:
+        generation.mode === "coding" && generation.artifact !== "none"
+          ? generation.artifact
+          : undefined,
     });
 
     await ctx.scheduler.runAfter(0, internal.chat.runCouncilQuery, {
@@ -81,9 +106,13 @@ export const listSessions = query({
         prompt: string;
         promptAt: number;
         mode: "answer" | "coding";
+        codingArtifact?: "html" | "react" | "threejs";
+        /** True if any user message persisted `generationArtifact` (do not infer from assistants). */
+        hasStoredCodingArtifact: boolean;
         startedAt: number;
         lastActivityAt: number;
         models: Set<string>;
+        resolvedByRequested: LatestResolvedByRequested;
       }
     >();
 
@@ -99,9 +128,11 @@ export const listSessions = query({
           prompt: "",
           promptAt: Number.POSITIVE_INFINITY,
           mode: "answer",
+          hasStoredCodingArtifact: false,
           startedAt: msg._creationTime,
           lastActivityAt: msg._creationTime,
           models: new Set(msg.model ? [msg.model] : []),
+          resolvedByRequested: new Map(),
         });
       }
 
@@ -119,27 +150,67 @@ export const listSessions = query({
       if (msg.model) {
         session.models.add(msg.model);
       }
+      if (msg.role === "assistant" && msg.model && msg.resolvedModel) {
+        mergeLatestResolvedModel(
+          session.resolvedByRequested,
+          msg.model,
+          msg.resolvedModel,
+          msg._creationTime,
+        );
+      }
       if (msg.role === "user" && msg.source === "user" && msg._creationTime < session.promptAt) {
         session.promptAt = msg._creationTime;
         session.prompt = msg.content;
       }
       if (msg.role === "user" && msg.source === "user" && msg.generationMode === "coding") {
         session.mode = "coding";
-      } else if (msg.role === "assistant" && looksLikeHtmlResponse(msg.content)) {
+        if (msg.generationArtifact !== undefined) {
+          session.hasStoredCodingArtifact = true;
+        }
+        const a = msg.generationArtifact;
+        if (a === "react") {
+          session.codingArtifact = "react";
+        } else if (a === "html" && session.codingArtifact !== "react") {
+          session.codingArtifact = "html";
+        } else if (a === "threejs" && session.codingArtifact === undefined) {
+          session.codingArtifact = "threejs";
+        }
+      } else if (msg.role === "assistant" && looksLikeCodingPreviewResponse(msg.content)) {
         // Backfill mode for legacy chats where generationMode wasn't stored.
         session.mode = "coding";
+      }
+      if (
+        msg.role === "assistant" &&
+        session.mode === "coding" &&
+        !session.hasStoredCodingArtifact
+      ) {
+        const inferred = inferCodingArtifactFromAssistant(msg.content);
+        if (inferred === "react") {
+          session.codingArtifact = "react";
+        } else if (inferred === "html" && session.codingArtifact !== "react") {
+          session.codingArtifact ??= "html";
+        }
       }
     }
 
     return [...sessions.values()]
-      .map((session) => ({
-        sessionId: session.sessionId,
-        prompt: session.prompt,
-        mode: session.mode,
-        models: [...session.models].sort((a, b) => a.localeCompare(b)),
-        startedAt: session.startedAt,
-        lastActivityAt: session.lastActivityAt,
-      }))
+      .map((session) => {
+        const modelsSorted = [...session.models].sort((a, b) => a.localeCompare(b));
+        return {
+          sessionId: session.sessionId,
+          prompt: session.prompt,
+          mode: session.mode,
+          codingArtifact: session.codingArtifact,
+          models: modelsSorted,
+          historyModelsSummary: historyModelsLine(
+            modelsSorted,
+            session.resolvedByRequested,
+            " vs ",
+          ),
+          startedAt: session.startedAt,
+          lastActivityAt: session.lastActivityAt,
+        };
+      })
       .sort((a, b) => b.lastActivityAt - a.lastActivityAt);
   },
 });

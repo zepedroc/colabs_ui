@@ -121,6 +121,18 @@ function parseOptionalNumber(value: unknown): number | undefined {
   return undefined;
 }
 
+/** OpenRouter may route `openrouter/free` (etc.) to a concrete `model` in the JSON body. */
+function extractResolvedModelFromPayload(
+  data: Record<string, unknown>,
+  requestedModel: string,
+): string | undefined {
+  const raw = data.model;
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed === requestedModel) return undefined;
+  return trimmed;
+}
+
 function extractResponseMetrics(payload: Record<string, unknown>): ResponseMetricsBase {
   const usage =
     payload.usage && typeof payload.usage === "object"
@@ -183,6 +195,8 @@ function aggregateMetrics(
 
 export interface SendQueryResult {
   content: string;
+  /** Present when the API `model` field differs from the requested id (e.g. free-tier routing). */
+  resolvedModel?: string;
   metrics: ResponseMetrics;
 }
 
@@ -267,6 +281,7 @@ export async function sendQuery(
 
       return {
         content,
+        resolvedModel: extractResolvedModelFromPayload(data, model),
         metrics: {
           ...extractResponseMetrics(data),
           latencyMs: Date.now() - startedAt,
@@ -327,6 +342,7 @@ type OpenRouterMessage =
 export interface SendQueryWithToolsResult {
   content: string | null;
   chartSpec: ChartSpec | null;
+  resolvedModel?: string;
   metrics: ResponseMetrics;
 }
 
@@ -346,6 +362,7 @@ export async function sendQueryWithTools(
   let chartSpec: ChartSpec | null = null;
   let currentMessages = [...messages];
   let aggregatedMetrics: ResponseMetricsBase = {};
+  let lastResolvedModel: string | undefined;
 
   for (let iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
     const body: Record<string, unknown> = {
@@ -420,6 +437,10 @@ export async function sendQueryWithTools(
     }
 
     aggregatedMetrics = aggregateMetrics(aggregatedMetrics, extractResponseMetrics(data));
+    const resolvedFromPayload = extractResolvedModelFromPayload(data, model);
+    if (resolvedFromPayload !== undefined) {
+      lastResolvedModel = resolvedFromPayload;
+    }
 
     const msg = choices[0]?.message;
     const toolCalls = msg?.tool_calls;
@@ -468,6 +489,7 @@ export async function sendQueryWithTools(
     return {
       content: typeof content === "string" ? content : null,
       chartSpec,
+      resolvedModel: lastResolvedModel,
       metrics: {
         ...aggregatedMetrics,
         latencyMs: Date.now() - startedAt,
@@ -478,6 +500,7 @@ export async function sendQueryWithTools(
   return {
     content: "Tool loop exceeded maximum iterations.",
     chartSpec,
+    resolvedModel: lastResolvedModel,
     metrics: {
       ...aggregatedMetrics,
       latencyMs: Date.now() - startedAt,

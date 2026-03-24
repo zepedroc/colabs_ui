@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ModelSelector } from "@/components/ModelSelector";
+import { formatRequestedToResolvedShort } from "@/lib/modelDisplay";
 import { extractMessageBody } from "@/lib/messages/extractMessageBody";
 import { extractRenderArtifacts } from "@/lib/messages/extractRenderArtifacts";
 import { api } from "../convex/_generated/api";
@@ -64,8 +65,62 @@ function getModelDisplayName(model: string): string {
   return model.split("/").pop() ?? model;
 }
 
-function formatChatType(mode: CompareGenerationMode): string {
-  return mode === "coding" ? "Coding" : "Text";
+type CompareGenerationMode = "answer" | "coding";
+
+/** Values the compare UI exposes (HTML vs one 3D mode backed by R3F / `react` in Convex). */
+type CompareCodingArtifact = "html" | "react";
+
+/** Persisted `generation.artifact`; `threejs` is normalized to the same 3D tab as `react`. */
+type StoredCompareCodingArtifact = "html" | "react" | "threejs";
+
+/**
+ * Map stored Convex artifacts onto the two UI tabs. `threejs` and `react` both select 3D (R3F).
+ */
+function normalizeCodingArtifact(
+  artifact: StoredCompareCodingArtifact | undefined,
+): CompareCodingArtifact {
+  if (artifact === "react" || artifact === "threejs") {
+    return "react";
+  }
+  if (artifact === "html") {
+    return "html";
+  }
+  return "html";
+}
+
+type CompareSessionListEntry = {
+  mode: CompareGenerationMode;
+  codingArtifact?: StoredCompareCodingArtifact;
+};
+
+function formatCompareHistoryBadge(session: CompareSessionListEntry): string {
+  if (session.mode !== "coding") {
+    return "Text";
+  }
+  switch (session.codingArtifact) {
+    case "react":
+    case "threejs":
+      return "3D";
+    case "html":
+      return "HTML";
+    default:
+      return "Coding";
+  }
+}
+
+function compareHistoryBadgeClass(session: CompareSessionListEntry): string {
+  if (session.mode !== "coding") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  switch (session.codingArtifact) {
+    case "react":
+    case "threejs":
+      return "border-violet-200 bg-violet-50 text-violet-800";
+    case "html":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    default:
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
 }
 
 function getMessageLatency(msg: Doc<"chatMessages">): number | undefined {
@@ -173,13 +228,12 @@ const DEFAULT_COMPARE_MODELS: [string, string] = [
   "arcee-ai/trinity-large-preview:free",
 ];
 
-type CompareGenerationMode = "answer" | "coding";
-
 export function ComparePage() {
   const [message, setMessage] = useState("");
   const [sessionId, setSessionId] = useState(() => `compare-${Date.now()}-${Math.random()}`);
   const [selectedModels, setSelectedModels] = useState<[string, string]>(DEFAULT_COMPARE_MODELS);
   const [generationMode, setGenerationMode] = useState<CompareGenerationMode>("answer");
+  const [codingArtifact, setCodingArtifact] = useState<CompareCodingArtifact>("html");
   const [responseViewMode, setResponseViewMode] = useState<ResponseViewMode>("response");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
@@ -221,7 +275,7 @@ export function ComparePage() {
         models: selectedModels,
         generation: {
           mode: generationMode,
-          artifact: generationMode === "coding" ? "html" : "none",
+          artifact: generationMode === "coding" ? codingArtifact : "none",
         },
       });
     } catch (error) {
@@ -246,7 +300,7 @@ export function ComparePage() {
       (msg) =>
         msg.role === "assistant" &&
         extractRenderArtifacts(extractMessageBody(msg.content)).some(
-          (artifact) => artifact.kind === "html",
+          (artifact) => artifact.kind === "html" || artifact.kind === "r3f",
         ),
     );
     if (hasCodingArtifacts) {
@@ -267,23 +321,23 @@ export function ComparePage() {
     return !isFinalSameAsLastRound(group, lastRound ?? null);
   });
 
-  const hasHtmlPreview = useMemo(() => {
+  const hasArtifactPreview = useMemo(() => {
     const latestRenderableGroup = [...filteredGroups]
       .reverse()
       .find((group) => group.type !== "user");
     if (!latestRenderableGroup) return false;
     return latestRenderableGroup.messages.some((msg) =>
       extractRenderArtifacts(extractMessageBody(msg.content)).some(
-        (artifact) => artifact.kind === "html",
+        (artifact) => artifact.kind === "html" || artifact.kind === "r3f",
       ),
     );
   }, [filteredGroups]);
 
   useEffect(() => {
-    if (!hasHtmlPreview && responseViewMode === "preview") {
+    if (!hasArtifactPreview && responseViewMode === "preview") {
       setResponseViewMode("response");
     }
-  }, [hasHtmlPreview, responseViewMode]);
+  }, [hasArtifactPreview, responseViewMode]);
 
   useEffect(() => {
     if (currentChatMode !== "coding" && responseViewMode === "preview") {
@@ -301,11 +355,15 @@ export function ComparePage() {
     nextSessionId: string,
     models: string[],
     mode: CompareGenerationMode,
+    artifact?: StoredCompareCodingArtifact,
   ) => {
     shouldScrollOnMessagesRef.current = false;
     setSessionId(nextSessionId);
     setGenerationMode(mode);
     setRequestError(null);
+    if (mode === "coding") {
+      setCodingArtifact(normalizeCodingArtifact(artifact));
+    }
     if (models.length >= 2) {
       const nextModels: [string, string] = [models[0], models[1]];
       setSelectedModels(nextModels);
@@ -358,7 +416,7 @@ export function ComparePage() {
             <TabsTrigger
               value="preview"
               className="px-3 py-1 text-xs"
-              disabled={isSubmitting || !hasHtmlPreview}
+              disabled={isSubmitting || !hasArtifactPreview}
             >
               Preview
             </TabsTrigger>
@@ -378,14 +436,11 @@ export function ComparePage() {
           untitledFallback: "Untitled compare chat",
           modelsSummary:
             session.models.length > 0
-              ? session.models.map(getModelDisplayName).join(" vs ")
+              ? session.historyModelsSummary || session.models.map(getModelDisplayName).join(" vs ")
               : "No model data",
           startedAt: session.startedAt,
-          badgeLabel: formatChatType(session.mode),
-          badgeClassName:
-            session.mode === "coding"
-              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-              : "border-amber-200 bg-amber-50 text-amber-700",
+          badgeLabel: formatCompareHistoryBadge(session),
+          badgeClassName: compareHistoryBadgeClass(session),
         }))}
         activeSessionId={sessionId}
         deletingSessionId={deletingSessionId}
@@ -394,7 +449,12 @@ export function ComparePage() {
         onSelectSession={(id) => {
           const session = compareSessions.find((s) => s.sessionId === id);
           if (!session) return;
-          handleSelectSession(session.sessionId, session.models, session.mode);
+          handleSelectSession(
+            session.sessionId,
+            session.models,
+            session.mode,
+            session.codingArtifact,
+          );
         }}
         onDeleteSession={handleDeleteSession}
         onNewChat={startNewCompare}
@@ -528,7 +588,7 @@ export function ComparePage() {
                               >
                                 <div className="py-3 px-4 flex flex-row justify-between items-center gap-2 border-b border-slate-200/50">
                                   <span className="text-xs font-semibold text-slate-700 truncate min-w-0">
-                                    {(msg.model ?? "Unknown").split("/").pop() ?? msg.model}
+                                    {formatRequestedToResolvedShort(msg.model, msg.resolvedModel)}
                                   </span>
                                   <div className="flex items-center gap-1.5 shrink-0">
                                     <span className="text-[11px] text-slate-400 tabular-nums">
@@ -564,7 +624,9 @@ export function ComparePage() {
                         <CardContent className="p-4">
                           <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-slate-100">
                             <span className="text-sm font-semibold text-slate-800">
-                              {msg.model ? msg.model.split("/").pop() : "Model"}
+                              {msg.model
+                                ? formatRequestedToResolvedShort(msg.model, msg.resolvedModel)
+                                : "Model"}
                             </span>
                             <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
                               {new Date(msg._creationTime).toLocaleTimeString()}
@@ -623,7 +685,7 @@ export function ComparePage() {
                 onChange={setSelectedModels}
                 disabled={isSubmitting}
               />
-              <div className="flex items-center gap-1.5 shrink-0 text-sm text-slate-600">
+              <div className="flex flex-wrap items-center gap-2 shrink-0 text-sm text-slate-600">
                 <span>Prompt:</span>
                 <Tabs
                   value={generationMode}
@@ -646,6 +708,32 @@ export function ComparePage() {
                     </TabsTrigger>
                   </TabsList>
                 </Tabs>
+                {generationMode === "coding" ? (
+                  <>
+                    <span className="text-slate-400 hidden sm:inline">·</span>
+                    <Tabs
+                      value={codingArtifact}
+                      onValueChange={(value) => setCodingArtifact(value as CompareCodingArtifact)}
+                    >
+                      <TabsList className="h-9 p-1">
+                        <TabsTrigger
+                          value="html"
+                          className="px-3 py-1 text-xs"
+                          disabled={isSubmitting}
+                        >
+                          HTML
+                        </TabsTrigger>
+                        <TabsTrigger
+                          value="react"
+                          className="px-3 py-1 text-xs"
+                          disabled={isSubmitting}
+                        >
+                          3D (R3F)
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </>
+                ) : null}
               </div>
             </div>
             <div className="flex gap-3">
@@ -655,7 +743,9 @@ export function ComparePage() {
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder={
                   generationMode === "coding"
-                    ? "Ask for an HTML visualization to compare..."
+                    ? codingArtifact === "react"
+                      ? "Ask for a React Three Fiber 3D scene to compare..."
+                      : "Ask for an HTML visualization to compare..."
                     : "Ask a question to compare..."
                 }
                 className="h-11 flex-1 min-w-0"

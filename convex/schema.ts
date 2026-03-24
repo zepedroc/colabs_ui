@@ -29,6 +29,10 @@ const applicationTables = {
     role: v.union(v.literal("user"), v.literal("assistant")),
     sessionId: v.string(),
     generationMode: v.optional(v.union(v.literal("answer"), v.literal("coding"))),
+    /** When `generationMode` is coding (e.g. compare), which artifact the user asked for. */
+    generationArtifact: v.optional(
+      v.union(v.literal("html"), v.literal("react"), v.literal("threejs")),
+    ),
     // Preferred metric fields.
     promptTokens: v.optional(v.number()),
     completionTokens: v.optional(v.number()),
@@ -58,6 +62,8 @@ const applicationTables = {
     ),
     round: v.optional(v.number()),
     model: v.optional(v.string()),
+    /** OpenRouter's concrete model id when `model` is a route (e.g. openrouter/free). */
+    resolvedModel: v.optional(v.string()),
   })
     .index("by_session", ["sessionId"])
     .index("by_user", ["userId"])

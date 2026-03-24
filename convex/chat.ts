@@ -11,6 +11,12 @@ import {
   type GenerationSettings,
 } from "./generation";
 import { getDefaultModels } from "./models";
+import {
+  formatAssistantModelLabel,
+  type LatestResolvedByRequested,
+  historyModelsLine,
+  mergeLatestResolvedModel,
+} from "./modelLabels";
 import { getOpenRouterApiKey } from "./openrouterConfig";
 
 const councilMode = v.union(
@@ -47,6 +53,10 @@ export const sendMessage = mutation({
       sessionId: args.sessionId,
       source: "user",
       generationMode: generation.mode,
+      generationArtifact:
+        generation.mode === "coding" && generation.artifact !== "none"
+          ? generation.artifact
+          : undefined,
     });
 
     const models =
@@ -119,6 +129,7 @@ export const listSessions = query({
         startedAt: number;
         lastActivityAt: number;
         models: Set<string>;
+        resolvedByRequested: LatestResolvedByRequested;
         maxRound: number;
         hasResearch: boolean;
         orchestratorModel: string | null;
@@ -140,6 +151,7 @@ export const listSessions = query({
           startedAt: msg._creationTime,
           lastActivityAt: msg._creationTime,
           models: new Set(msg.model ? [msg.model] : []),
+          resolvedByRequested: new Map(),
           maxRound: msg.round ?? 0,
           hasResearch: false,
           orchestratorModel: null,
@@ -156,6 +168,14 @@ export const listSessions = query({
       }
       if (msg.model) {
         session.models.add(msg.model);
+      }
+      if (msg.role === "assistant" && msg.model && msg.resolvedModel) {
+        mergeLatestResolvedModel(
+          session.resolvedByRequested,
+          msg.model,
+          msg.resolvedModel,
+          msg._creationTime,
+        );
       }
       if (msg.round != null && msg.round > session.maxRound) {
         session.maxRound = msg.round;
@@ -182,11 +202,13 @@ export const listSessions = query({
       .map((session) => {
         const mode = session.hasResearch ? ("research" as const) : ("parallel" as const);
         const rounds = session.maxRound > 0 ? Math.min(5, Math.max(1, session.maxRound)) : 3;
+        const modelsSorted = [...session.models].sort((a, b) => a.localeCompare(b));
         return {
           sessionId: session.sessionId,
           prompt: session.prompt,
           mode,
-          models: [...session.models].sort((a, b) => a.localeCompare(b)),
+          models: modelsSorted,
+          historyModelsSummary: historyModelsLine(modelsSorted, session.resolvedByRequested, " · "),
           rounds,
           orchestratorModel: session.orchestratorModel,
           startedAt: session.startedAt,
@@ -246,6 +268,7 @@ export const appendAssistantMessage = internalMutation({
     ),
     round: v.optional(v.number()),
     model: v.optional(v.string()),
+    resolvedModel: v.optional(v.string()),
     chartSpec: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
@@ -257,6 +280,7 @@ export const appendAssistantMessage = internalMutation({
       source: args.source,
       round: args.round,
       model: args.model,
+      resolvedModel: args.resolvedModel,
       promptTokens: args.promptTokens,
       completionTokens: args.completionTokens,
       totalTokens: args.totalTokens,
@@ -305,6 +329,7 @@ export const runCouncilQuery = internalAction({
           type?: string;
           round?: number;
           model?: string;
+          resolvedModel?: string;
           content?: string | null;
           error?: string | null;
           chartSpec?: unknown;
@@ -316,6 +341,7 @@ export const runCouncilQuery = internalAction({
           data?: {
             responses?: Array<{
               model?: string;
+              resolvedModel?: string;
               content?: string | null;
               error?: string | null;
               chartSpec?: unknown;
@@ -341,7 +367,7 @@ export const runCouncilQuery = internalAction({
         }
 
         if (event.type === "round_response") {
-          const label = `Round ${event.round ?? "?"} · ${event.model ?? "unknown model"}`;
+          const label = `Round ${event.round ?? "?"} · ${formatAssistantModelLabel(event.model, event.resolvedModel)}`;
           const body = event.error ? `Error: ${event.error}` : event.content || "(no content)";
           await ctx.runMutation(internal.chat.appendAssistantMessage, {
             userId: args.userId as Id<"users">,
@@ -350,6 +376,7 @@ export const runCouncilQuery = internalAction({
             source: "council_round",
             round: event.round,
             model: event.model,
+            resolvedModel: event.resolvedModel,
             promptTokens: event.promptTokens,
             completionTokens: event.completionTokens,
             totalTokens: event.totalTokens,
@@ -369,12 +396,13 @@ export const runCouncilQuery = internalAction({
               userId: args.userId as Id<"users">,
               sessionId: args.sessionId,
               content:
-                `Final · ${modelResponse.model ?? "unknown model"}\n` +
+                `Final · ${formatAssistantModelLabel(modelResponse.model, modelResponse.resolvedModel)}\n` +
                 (modelResponse.error
                   ? `Error: ${modelResponse.error}`
                   : modelResponse.content || "(no content)"),
               source: "council_final",
               model: modelResponse.model,
+              resolvedModel: modelResponse.resolvedModel,
               promptTokens: modelResponse.promptTokens ?? responseMetrics?.promptTokens,
               completionTokens: modelResponse.completionTokens ?? responseMetrics?.completionTokens,
               totalTokens: modelResponse.totalTokens ?? responseMetrics?.totalTokens,
@@ -394,6 +422,7 @@ export const runCouncilQuery = internalAction({
             source: "research_orchestrator",
             round: event.round,
             model: event.model || args.orchestratorModel,
+            resolvedModel: event.resolvedModel,
             promptTokens: event.promptTokens,
             completionTokens: event.completionTokens,
             totalTokens: event.totalTokens,
@@ -404,7 +433,7 @@ export const runCouncilQuery = internalAction({
         }
 
         if (event.type === "research_council_response") {
-          const label = `Round ${event.round ?? "?"} · ${event.model ?? "unknown model"}`;
+          const label = `Round ${event.round ?? "?"} · ${formatAssistantModelLabel(event.model, event.resolvedModel)}`;
           const body = event.error ? `Error: ${event.error}` : event.content || "(no content)";
           await ctx.runMutation(internal.chat.appendAssistantMessage, {
             userId: args.userId as Id<"users">,
@@ -413,6 +442,7 @@ export const runCouncilQuery = internalAction({
             source: "research_council",
             round: event.round,
             model: event.model,
+            resolvedModel: event.resolvedModel,
             promptTokens: event.promptTokens,
             completionTokens: event.completionTokens,
             totalTokens: event.totalTokens,
@@ -428,9 +458,10 @@ export const runCouncilQuery = internalAction({
           await ctx.runMutation(internal.chat.appendAssistantMessage, {
             userId: args.userId as Id<"users">,
             sessionId: args.sessionId,
-            content: `Research final · ${event.model ?? "orchestrator"}\n${body}`,
+            content: `Research final · ${formatAssistantModelLabel(event.model ?? "orchestrator", event.resolvedModel)}\n${body}`,
             source: "research_final",
             model: event.model || args.orchestratorModel,
+            resolvedModel: event.resolvedModel,
             promptTokens: event.promptTokens,
             completionTokens: event.completionTokens,
             totalTokens: event.totalTokens,

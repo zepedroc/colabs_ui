@@ -21,6 +21,8 @@ export type CouncilMode = "parallel" | "conversation";
 
 export interface ModelResponse {
   model: string;
+  /** When OpenRouter routes the request (e.g. openrouter/free), the concrete model id from the API. */
+  resolvedModel?: string;
   content: string | null;
   error: string | null;
   chartSpec?: ChartSpec | null;
@@ -39,6 +41,15 @@ const BASE_COUNCIL_SYSTEM_PROMPT =
 const CODING_HTML_SYSTEM_PROMPT =
   "You are in coding mode for visual output. Return one fenced html code block that is preview-ready. " +
   "Prefer self-contained HTML and CSS, avoid external dependencies and JavaScript execution requirements.";
+
+const CODING_R3F_SYSTEM_PROMPT =
+  "You are in coding mode for a React Three Fiber 3D preview. " +
+  "Return exactly one fenced TSX code block labeled r3f or tsx. " +
+  "Do not use import or export statements; the viewer provides React, Canvas, useFrame, useThree, THREE, " +
+  "OrbitControls, Environment, Float, Text, ContactShadows, MeshDistortMaterial, MeshTransmissionMaterial, " +
+  "Sphere, Box, PerspectiveCamera, Stars, and other primitives inside <Canvas>. " +
+  "Write a single expression or a small component tree rooted in <Canvas> with lights, camera, and mesh geometry; " +
+  "use OrbitControls when the user should rotate the view.";
 
 const FIRST_ROUND_PROMPT_TEMPLATE =
   "You are a deep thinker in a multi-agent council.\n" +
@@ -100,16 +111,23 @@ async function querySingleModel(
 ): Promise<ModelResponse> {
   try {
     if (toolsEnabled) {
-      const { content, chartSpec, metrics } = await sendQueryWithTools(
+      const { content, chartSpec, metrics, resolvedModel } = await sendQueryWithTools(
         apiKey,
         model,
         messages as Array<{ role: "system" | "user" | "assistant"; content: string }>,
         AGENT_TOOLS,
       );
-      return { model, content, error: null, chartSpec: chartSpec ?? undefined, metrics };
+      return {
+        model,
+        content,
+        error: null,
+        chartSpec: chartSpec ?? undefined,
+        metrics,
+        resolvedModel,
+      };
     }
-    const { content, metrics } = await sendQuery(apiKey, model, messages);
-    return { model, content, error: null, metrics };
+    const { content, metrics, resolvedModel } = await sendQuery(apiKey, model, messages);
+    return { model, content, error: null, metrics, resolvedModel };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     return { model, content: null, error };
@@ -123,6 +141,10 @@ function buildCouncilSystemPrompt(generation: GenerationSettings): string {
 
   if (generation.artifact === "html") {
     return `${BASE_COUNCIL_SYSTEM_PROMPT} ${CODING_HTML_SYSTEM_PROMPT}`;
+  }
+
+  if (generation.artifact === "react") {
+    return `${BASE_COUNCIL_SYSTEM_PROMPT} ${CODING_R3F_SYSTEM_PROMPT}`;
   }
 
   return (
@@ -141,6 +163,16 @@ function buildGenerationPromptSuffix(generation: GenerationSettings): string {
       "\n\nOutput requirements:\n" +
       "- Include exactly one fenced code block labeled html.\n" +
       "- Make the snippet preview-ready (semantic HTML + inline CSS when needed).\n" +
+      "- Keep a short explanation outside the code block."
+    );
+  }
+
+  if (generation.artifact === "react") {
+    return (
+      "\n\nOutput requirements:\n" +
+      "- Include exactly one fenced code block labeled r3f or tsx.\n" +
+      "- No import or export statements; use only globals provided by the preview (React, Canvas, THREE, drei helpers, etc.).\n" +
+      "- Root the scene in <Canvas> with appropriate lighting; add <OrbitControls /> when orbit is useful.\n" +
       "- Keep a short explanation outside the code block."
     );
   }
@@ -473,6 +505,7 @@ async function* runResearchRoundParallel(
     const p = querySingleModel(apiKey, model, messages, toolsEnabled).then((response) => ({
       response: {
         model,
+        resolvedModel: response.resolvedModel,
         content: response.content,
         error: response.error,
         chartSpec: response.chartSpec,
@@ -534,6 +567,7 @@ async function* runRoundParallel(
     const p = querySingleModel(apiKey, model, messages, toolsEnabled).then((response) => ({
       response: {
         model,
+        resolvedModel: response.resolvedModel,
         content: response.content,
         error: response.error,
         chartSpec: response.chartSpec,
@@ -616,6 +650,7 @@ function roundResponseEvent(roundNumber: number, response: ModelResponse): strin
     type: "round_response",
     round: roundNumber,
     model: response.model,
+    resolvedModel: response.resolvedModel,
     content: response.content,
     error: response.error,
     chartSpec: response.chartSpec,
@@ -740,6 +775,7 @@ export async function* queryResearchCouncilStream(
 
       let orchestratorRaw = "";
       let orchestratorMetrics: ResponseMetrics | undefined;
+      let orchestratorResolved: string | undefined;
       try {
         const orchestratorResult = await sendQuery(apiKey, safeOrchestrator, [
           { role: "system", content: RESEARCH_ORCHESTRATOR_SYSTEM_PROMPT },
@@ -747,6 +783,7 @@ export async function* queryResearchCouncilStream(
         ]);
         orchestratorRaw = orchestratorResult.content;
         orchestratorMetrics = orchestratorResult.metrics;
+        orchestratorResolved = orchestratorResult.resolvedModel;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         yield `${JSON.stringify({ type: "research_error", error: message })}\n`;
@@ -760,6 +797,7 @@ export async function* queryResearchCouncilStream(
         type: "research_orchestrator",
         round: roundNumber,
         model: safeOrchestrator,
+        resolvedModel: orchestratorResolved,
         content: orchestratorMessage,
         promptTokens: orchestratorMetrics?.promptTokens,
         completionTokens: orchestratorMetrics?.completionTokens,
@@ -788,6 +826,7 @@ export async function* queryResearchCouncilStream(
           type: "research_council_response",
           round: roundNumber,
           model: response.model,
+          resolvedModel: response.resolvedModel,
           content: response.content,
           error: response.error,
           chartSpec: response.chartSpec,
@@ -810,6 +849,7 @@ export async function* queryResearchCouncilStream(
     let finalContent: string | null = null;
     let finalError: string | null = null;
     let finalMetrics: ResponseMetrics | undefined;
+    let finalResolved: string | undefined;
     try {
       const finalResult = await sendQuery(apiKey, safeOrchestrator, [
         {
@@ -821,6 +861,7 @@ export async function* queryResearchCouncilStream(
       ]);
       finalContent = finalResult.content;
       finalMetrics = finalResult.metrics;
+      finalResolved = finalResult.resolvedModel;
     } catch (error) {
       finalError = error instanceof Error ? error.message : String(error);
     }
@@ -828,6 +869,7 @@ export async function* queryResearchCouncilStream(
     yield `${JSON.stringify({
       type: "research_final",
       model: safeOrchestrator,
+      resolvedModel: finalResolved,
       content: finalContent,
       error: finalError,
       promptTokens: finalMetrics?.promptTokens,

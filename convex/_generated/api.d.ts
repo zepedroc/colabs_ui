@@ -21,6 +21,7 @@ import type * as cursorAutomationConfig from "../cursorAutomationConfig.js";
 import type * as generation from "../generation.js";
 import type * as http from "../http.js";
 import type * as lifeManagement from "../lifeManagement.js";
+import type * as modelLabels from "../modelLabels.js";
 import type * as models from "../models.js";
 import type * as openrouter from "../openrouter.js";
 import type * as openrouterConfig from "../openrouterConfig.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   generation: typeof generation;
   http: typeof http;
   lifeManagement: typeof lifeManagement;
+  modelLabels: typeof modelLabels;
   models: typeof models;
   openrouter: typeof openrouter;
   openrouterConfig: typeof openrouterConfig;

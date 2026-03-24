@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatRequestedToResolvedShort } from "@/lib/modelDisplay";
 import { api } from "../convex/_generated/api";
 import type { Doc } from "../convex/_generated/dataModel";
 
@@ -409,7 +410,7 @@ export function ChatPage() {
           untitledFallback: "Untitled chat",
           modelsSummary:
             session.models.length > 0
-              ? session.models.map(getModelDisplayName).join(" · ")
+              ? session.historyModelsSummary || session.models.map(getModelDisplayName).join(" · ")
               : "No model data",
           startedAt: session.startedAt,
           badgeLabel: formatCouncilHistoryMode(session.mode),
@@ -568,7 +569,10 @@ export function ChatPage() {
                             <CardContent className="p-4">
                               <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-violet-100">
                                 <span className="text-sm font-semibold text-violet-900">
-                                  {(msg.model ?? "Orchestrator").split("/").pop() ?? msg.model}
+                                  {formatRequestedToResolvedShort(
+                                    msg.model ?? "Orchestrator",
+                                    msg.resolvedModel,
+                                  )}
                                 </span>
                                 <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
                                   {new Date(msg._creationTime).toLocaleTimeString()}
@@ -634,7 +638,7 @@ export function ChatPage() {
                                   <span
                                     className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
                                   >
-                                    {(msg.model ?? "Unknown").split("/").pop() ?? msg.model}
+                                    {formatRequestedToResolvedShort(msg.model, msg.resolvedModel)}
                                   </span>
                                   <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
                                     {new Date(msg._creationTime).toLocaleTimeString()}
@@ -688,7 +692,7 @@ export function ChatPage() {
                                   <span
                                     className={`text-xs font-semibold px-2.5 py-1 rounded-md w-fit ${colors.label}`}
                                   >
-                                    {(msg.model ?? "Unknown").split("/").pop() ?? msg.model}
+                                    {formatRequestedToResolvedShort(msg.model, msg.resolvedModel)}
                                   </span>
                                   <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
                                     {new Date(msg._creationTime).toLocaleTimeString()}
@@ -730,7 +734,10 @@ export function ChatPage() {
                           <CardContent className="p-4">
                             <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-emerald-100">
                               <span className="text-sm font-semibold text-emerald-900">
-                                {(msg.model ?? "Orchestrator").split("/").pop() ?? msg.model}
+                                {formatRequestedToResolvedShort(
+                                  msg.model ?? "Orchestrator",
+                                  msg.resolvedModel,
+                                )}
                               </span>
                               <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
                                 {new Date(msg._creationTime).toLocaleTimeString()}
@@ -758,7 +765,9 @@ export function ChatPage() {
                           <div className="flex justify-between items-center gap-2 mb-3 pb-2 border-b border-slate-100">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-semibold text-slate-800">
-                                {msg.model ? msg.model.split("/").pop() : "AI Council"}
+                                {msg.model
+                                  ? formatRequestedToResolvedShort(msg.model, msg.resolvedModel)
+                                  : "AI Council"}
                               </span>
                               {msg.round ? (
                                 <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
